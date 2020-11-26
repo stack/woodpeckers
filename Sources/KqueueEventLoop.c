@@ -24,9 +24,11 @@
 
 #define EVENTS_STEP 5
 #define EVENTS_TO_PROCESS 5
+#define INTERNAL_EVENT_ID UINT32_MAX
 
 typedef struct _Event {
     bool isActive;
+    bool shouldDeactivate;
 
     EventID id;
     int16_t type;
@@ -34,6 +36,7 @@ typedef struct _Event {
     union {
         struct {
             uint32_t timeoutMs;
+            EventLoopTimerFiredCallback timerFired;
         } timer;
     };
 } Event;
@@ -45,15 +48,18 @@ typedef struct _EventLoop {
     Event *timerEvents;
     size_t timerEventsCount;
     size_t timerEventsSize;
+
+    void *callbackContext;
 } EventLoop;
 
 
 // MARK: - Prototypes
 
 // Event Loop Controls
-static void EventLoopHandleTimerEvent(EventLoopRef self, EventID id);
+static void EventLoopHandleTimerEvent(EventLoopRef self, Event *event);
 
 // Event Management
+static void EventLoopDeactivateEvents(EventLoopRef self);
 static void EventLoopExpandEvents(EventLoopRef self, Event **events, size_t *eventsSize);
 static Event * EventLoopFindExistingEvent(EventLoopRef self, EventID id, int16_t type);
 static Event * EventLoopFindFreeEvent(EventLoopRef self, int16_t type);
@@ -96,13 +102,9 @@ void EventLoopDestroy(EventLoopRef self) {
 
 // MARK: - Event Loop Control
 
-void EventLoopHandleTimerEvent(EventLoopRef self, EventID id) {
-    printf("Timer %" PRIu32 " fired\n", id);
-}
-
 void EventLoopRun(EventLoopRef self) {
     self->keepRunning = true;
-    
+
     while (self->keepRunning) {
         EventLoopRunOnce(self);
     }
@@ -123,13 +125,15 @@ void EventLoopRunOnce(EventLoopRef self) {
 
         switch (event->filter) {
             case EVFILT_TIMER:
-                EventLoopHandleTimerEvent(self, event->ident);
+                EventLoopHandleTimerEvent(self, (Event *)event->udata);
                 break;
             default:
                 printf("Unhandled event filter: %i\n", event->filter);
                 break;
         }
     }
+
+    EventLoopDeactivateEvents(self);
 }
 
 void EventLoopStop(EventLoopRef self) {
@@ -140,6 +144,16 @@ void EventLoopStop(EventLoopRef self) {
 
 
 // MARK: - Event Management
+
+static void EventLoopDeactivateEvents(EventLoopRef self) {
+    for (size_t idx = 0; idx < self->timerEventsSize; idx++) {
+        Event *event = self->timerEvents + idx;
+
+        if (event->shouldDeactivate) {
+            memset(event, 0, sizeof(Event));
+        }
+    }
+}
 
 static void EventLoopExpandEvents(EventLoopRef self, Event **events, size_t *eventsSize) {
     Event *currentEvents = *events;
@@ -233,7 +247,7 @@ static bool EventLoopHasEvent(EventLoopRef self, EventID id, int16_t type) {
 
 // MARK: - Timers
 
-void EventLoopAddTimer(EventLoopRef self, EventID id, uint32_t timeout) {
+void EventLoopAddTimer(EventLoopRef self, EventID id, uint32_t timeout, EventLoopTimerFiredCallback callback) {
     // Do nothing if the timer exists
     if (EventLoopHasEvent(self, id, EVFILT_TIMER)) {
         printf("Timer %" PRIu32 " already exists\n", id);
@@ -255,7 +269,7 @@ void EventLoopAddTimer(EventLoopRef self, EventID id, uint32_t timeout) {
 
     // Add the event to kqueue
     struct kevent timerEvent;
-    EV_SET(&timerEvent, id, EVFILT_TIMER, EV_ADD | EV_ENABLE, NOTE_CRITICAL, timeout, NULL);
+    EV_SET(&timerEvent, id, EVFILT_TIMER, EV_ADD | EV_ENABLE, NOTE_CRITICAL, timeout, event);
 
     int result = kevent(self->kqueueFD, &timerEvent, 1, NULL, 0, NULL);
 
@@ -268,9 +282,22 @@ void EventLoopAddTimer(EventLoopRef self, EventID id, uint32_t timeout) {
     event->id = id;
     event->type = EVFILT_TIMER;
     event->timer.timeoutMs = timeout;
+    event->timer.timerFired = callback;
 
     event->isActive = true;
     self->timerEventsCount += 1;
+}
+
+static void EventLoopHandleTimerEvent(EventLoopRef self, Event *event) {
+    // This event may have been dropped, so skip it
+    if (!event->isActive || event->shouldDeactivate) {
+        return;
+    }
+
+    // Call the callback
+    if (event->timer.timerFired != NULL) {
+        event->timer.timerFired(self, event->id, self->callbackContext);
+    }
 }
 
 bool EventLoopHasTimer(EventLoopRef self, EventID id) {
@@ -295,5 +322,11 @@ void EventLoopRemoveTimer(EventLoopRef self, EventID id) {
         printf("Failed to remove timer event %" PRIu32 " from kqueue: %i\n", id, errno);
     }
 
-    memset(event, 0, sizeof(Event));
+    event->shouldDeactivate = true;
 } 
+
+// MARK: - Callbacks
+
+void EventLoopSetCallbackContext(EventLoopRef self, void *context) {
+    self->callbackContext = context;
+}

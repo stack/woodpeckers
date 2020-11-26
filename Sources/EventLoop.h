@@ -15,11 +15,22 @@
 
 // MARK: - Constants & Globals
 
-/// A unique identifier for an event of a specific type
+/// A unique identifier for an event of a specific type. `UINT32_MAX` is reserved.
 typedef uint16_t EventID;
 
 /// The Event Loop object
 typedef struct _EventLoop * EventLoopRef;
+
+
+// MARK: - Callbacks
+
+/**
+ * Called when a timer had fired.
+ * \param eventLoop The Event Loop the timer fired from.
+ * \param id The ID of the timer.
+ * \param context The opaque callback context associated with the Event Loop.
+ */
+typedef void (* EventLoopTimerFiredCallback)(EventLoopRef eventLoop, EventID id, void *context);
 
 
 // MARK: - Lifecycle Methods
@@ -65,10 +76,11 @@ void EventLoopStop(EventLoopRef eventLoop);
  * \param eventLoop The Event Loop to modify.
  * \param id The ID of the timer.
  * \param timeout The timeout in milliseconds for the timer.
- * \note The `id` zero is reserved.
+ * \param callback The callback to call when the timer has fired.
+ * \note The `id` value of `UINT32_MAX` is reserved.
  * \note Duplicate `id` values will be ignored.
  */
-void EventLoopAddTimer(EventLoopRef eventLoop, EventID id, uint32_t timeout);
+void EventLoopAddTimer(EventLoopRef eventLoop, EventID id, uint32_t timeout, EventLoopTimerFiredCallback callback);
 
 /**
  * Does the Event Loop have a timer with the given ID?
@@ -85,5 +97,15 @@ bool EventLoopHasTimer(EventLoopRef eventLoop, EventID id);
  * \note Non-existent IDs are ignored.
  */
 void EventLoopRemoveTimer(EventLoopRef eventLoop, EventID id);
+
+
+// MARK: - Callbacks
+
+/**
+ * Set the callback context associated with each callback method.
+ * \param eventLoop The Event Loop to modify.
+ * \param context The opaque pointer associated with each callback.
+ */
+void EventLoopSetCallbackContext(EventLoopRef eventLoop, void *context);
 
 #endif /* EVENT_LOOP_H */

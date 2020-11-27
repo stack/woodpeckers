@@ -15,7 +15,7 @@ else()
     message(FATAL_ERROR "Target platform \"${TARGET_PLATFORM}\" is not supported")
 endif()
 
-project(Woodpeckers VERSION "0.1.0.1" LANGUAGES C)
+project(Woodpeckers VERSION "0.1.0.1" LANGUAGES C CXX)
 
 #
 # Compilation Options
@@ -24,6 +24,10 @@ project(Woodpeckers VERSION "0.1.0.1" LANGUAGES C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_EXTENSIONS ON)
 set(CMAKE_C_STANDARD_REQUIRED ON)
+
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_EXTENSIONS ON)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if ("${CMAKE_C_COMPILER_ID}" STREQUAL "AppleClang")
     add_compile_options(-Wall -Wpedantic -Werror)
@@ -34,22 +38,23 @@ endif()
 configure_file(${CMAKE_CURRENT_LIST_DIR}/config.h.in ${CMAKE_BINARY_DIR}/config.h)
 
 #
-# Application Definition
+# Third-Party Libraries
 #
 
-set(APPLICATION_SOURCES )
-list(APPEND APPLICATION_SOURCES "${CMAKE_BINARY_DIR}/config.h")
-list(APPEND APPLICATION_SOURCES "${CMAKE_CURRENT_LIST_DIR}/Sources/EventLoop.h")
-list(APPEND APPLICATION_SOURCES "${CMAKE_CURRENT_LIST_DIR}/Sources/main.c")
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(YAML REQUIRED IMPORTED_TARGET yaml-0.1)
 
-if (TARGET_PLATFORM_APPLE)
-    list(APPEND APPLICATION_SOURCES "${CMAKE_CURRENT_LIST_DIR}/Sources/KqueueEventLoop.c")
-elseif (TARGET_PLATFORM_LINUX)
-    list(APPEND APPLICATION_SOURCES "${CMAKE_CURRENT_LIST_DIR}/Sources/EpollEventLoop.c")
-endif()
+#
+# Subdirectories
+#
 
-add_executable(Woodpeckers ${APPLICATION_SOURCES})
+add_subdirectory(Sources)
 
-target_include_directories(Woodpeckers PRIVATE ${CMAKE_BINARY_DIR})
-target_include_directories(Woodpeckers PRIVATE ${CMAKE_CURRENT_LIST_DIR}/Sources)
+enable_testing()
 
+find_package(GTest REQUIRED)
+
+include(GoogleTest)
+include(CTest)
+
+add_subdirectory(Tests)

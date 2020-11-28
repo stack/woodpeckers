@@ -76,7 +76,9 @@ static bool ConfigurationParse(ConfigurationRef self, yaml_parser_t * NONNULL pa
 static bool ConfigurationParseFromFile(ConfigurationRef self, const char * NONNULL path);
 static bool ConfigurationParseFromString(ConfigurationRef self, const char * NONNULL value);
 
+static void ConfigurationOutputDestroy(ConfigurationOutput * NONNULL output);
 static void ConfigurationOutputReset(ConfigurationOutput * NONNULL output);
+
 
 
 
@@ -125,6 +127,18 @@ ConfigurationRef ConfigurationCreateFromString(const char *value) {
 }
 
 void ConfigurationDestroy(ConfigurationRef self) {
+    ConfigurationOutput *tempOutputs = self->outputs;
+    size_t tempTotalOutputs = self->totalOutputs;
+
+    self->outputs = NULL;
+    self->totalOutputs = 0;
+
+    for (size_t idx = 0; idx < tempTotalOutputs; idx++) {
+        ConfigurationOutputDestroy(tempOutputs + idx);
+    }
+
+    SAFE_DESTROY(self->outputs, free);
+
     free(self);
 }
 
@@ -214,6 +228,8 @@ static bool ConfigurationParse(ConfigurationRef self, yaml_parser_t *parser) {
 
         yaml_event_delete(&event);
     }
+
+    ConfigurationOutputDestroy(&context.output);
 
     return success;
 } 
@@ -608,6 +624,16 @@ size_t ConfigurationGetTotalOutputs(const ConfigurationRef self) {
 
 
 // MARK: - Utilities
+
+static void ConfigurationOutputDestroy(ConfigurationOutput *output) {
+    SAFE_DESTROY(output->name, free);
+
+    if (output->type == ConfigurationOutputTypeFile) {
+        SAFE_DESTROY(output->file.path, free);
+    }
+
+    ConfigurationOutputReset(output);
+}
 
 static void ConfigurationOutputReset(ConfigurationOutput *output) {
     memset(output, 0, sizeof(ConfigurationOutput));

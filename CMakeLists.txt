@@ -30,7 +30,7 @@ set(CMAKE_CXX_EXTENSIONS ON)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if ("${CMAKE_C_COMPILER_ID}" STREQUAL "AppleClang")
-    add_compile_options(-Wall -Wpedantic -Werror)
+    add_compile_options(-Wall -Wpedantic -Werror -Wno-nullability-extension)
 elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
     add_compile_options(-Wall -Wpedantic -Werror)
 endif()
@@ -47,6 +47,9 @@ pkg_check_modules(YAML REQUIRED IMPORTED_TARGET yaml-0.1)
 #
 # Subdirectories
 #
+
+set(SOURCES_PATH ${CMAKE_CURRENT_LIST_DIR}/Sources)
+set(TESTS_PATH ${CMAKE_CURRENT_LIST_DIR}/Tests)
 
 add_subdirectory(Sources)
 

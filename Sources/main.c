@@ -2,29 +2,22 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include "Configuration.h"
 #include "EventLoop.h"
 
-static int firedCount = 0;
-static EventLoopRef eventLoop = NULL;
-
-static void TimerFired(EventLoopRef eventLoop, EventID id, void *context) {
-    printf("Timer %" PRIu32 " fired\n", id);
-
-    firedCount += 1;
-
-    if (firedCount == 5) {
-        EventLoopRemoveTimer(eventLoop, 1);
-    }
-}
-
 int main(int argc, char **argv) {
-    eventLoop = EventLoopCreate();
 
-    EventLoopAddTimer(eventLoop, 1, 1000, TimerFired);
+    if (argc != 2) {
+        return EXIT_FAILURE;
+    }
 
-    EventLoopRun(eventLoop);
+    ConfigurationRef configuration = ConfigurationCreateFromFile(argv[1]);
 
-    EventLoopDestroy(eventLoop);
+    if (configuration == NULL) {
+        printf("Failed to load configuration\n");
+    } else {
+        ConfigurationDestroy(configuration);
+    }
 
-    return 0;
+    return EXIT_SUCCESS;
 }

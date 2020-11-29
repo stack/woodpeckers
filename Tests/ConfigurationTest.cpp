@@ -200,3 +200,100 @@ TEST_F(ConfigurationTest, FailsToParseGPIOOutputWithoutPin) {
     configuration = ConfigurationCreateFromString(stringValue);
     ASSERT_EQ(configuration, nullptr); 
 }
+
+TEST_F(ConfigurationTest, ParsesBirds) {
+    const char *stringValue = 
+        "%YAML 1.2\n"
+        "---\n"
+        "\n"
+        "Birds:\n"
+        "  - Left:\n"
+        "    Static:\n"
+        "      - One\n"
+        "    Back:\n"
+        "      - Two\n"
+        "      - Three\n"
+        "    Forward:\n"
+        "      - Four\n"
+        "      - Five\n"
+        "  - Right:\n"
+        "    Static:\n"
+        "      - Six\n"
+        "      - Seven\n"
+        "    Back:\n"
+        "      - Eight\n"
+        "    Forward:\n"
+        "      - Nine\n"
+        "      - Ten\n";
+
+    configuration = ConfigurationCreateFromString(stringValue);
+    
+    ASSERT_NE(configuration, nullptr);
+
+    size_t total = ConfigurationGetTotalBirds(configuration);
+    ASSERT_EQ(total, 2);
+
+    const char *name = ConfigurationGetBirdName(configuration, 0);
+    ASSERT_STREQ(name, "Left");
+
+    total = ConfigurationGetBirdTotalStatics(configuration, 0);
+    ASSERT_EQ(total, 1);
+
+    name = ConfigurationGetBirdStatic(configuration, 0, 0);
+    ASSERT_NE(name, nullptr);
+    ASSERT_STREQ(name, "One");
+
+    total = ConfigurationGetBirdTotalBacks(configuration, 0);
+    ASSERT_EQ(total, 2);
+
+    name = ConfigurationGetBirdBack(configuration, 0, 0);
+    ASSERT_NE(name, nullptr);
+    ASSERT_STREQ(name, "Two");
+
+    name = ConfigurationGetBirdBack(configuration, 0, 1);
+    ASSERT_NE(name, nullptr);
+    ASSERT_STREQ(name, "Three");
+
+    total = ConfigurationGetBirdTotalForwards(configuration, 0);
+    ASSERT_EQ(total, 2);
+
+    name = ConfigurationGetBirdForward(configuration, 0, 0);
+    ASSERT_NE(name, nullptr);
+    ASSERT_STREQ(name, "Four");
+
+    name = ConfigurationGetBirdForward(configuration, 0, 1);
+    ASSERT_NE(name, nullptr);
+    ASSERT_STREQ(name, "Five");
+
+    name = ConfigurationGetBirdName(configuration, 1);
+    ASSERT_STREQ(name, "Right");
+
+    total = ConfigurationGetBirdTotalStatics(configuration, 1);
+    ASSERT_EQ(total, 2);
+
+    name = ConfigurationGetBirdStatic(configuration, 1, 0);
+    ASSERT_NE(name, nullptr);
+    ASSERT_STREQ(name, "Six");
+
+    name = ConfigurationGetBirdStatic(configuration, 1, 1);
+    ASSERT_NE(name, nullptr);
+    ASSERT_STREQ(name, "Seven");
+
+    total = ConfigurationGetBirdTotalBacks(configuration, 1);
+    ASSERT_EQ(total, 1);
+
+    name = ConfigurationGetBirdBack(configuration, 1, 0);
+    ASSERT_NE(name, nullptr);
+    ASSERT_STREQ(name, "Eight");
+
+    total = ConfigurationGetBirdTotalForwards(configuration, 1);
+    ASSERT_EQ(total, 2);
+
+    name = ConfigurationGetBirdForward(configuration, 1, 0);
+    ASSERT_NE(name, nullptr);
+    ASSERT_STREQ(name, "Nine");
+
+    name = ConfigurationGetBirdForward(configuration, 1, 1);
+    ASSERT_NE(name, nullptr);
+    ASSERT_STREQ(name, "Ten");
+}

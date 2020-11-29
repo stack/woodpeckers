@@ -15,6 +15,21 @@
 
 // MARK: - Constants & Globals
 
+static bool DumpParseEvents = false;
+
+typedef struct _ConfigurationBird {
+    char *name;
+
+    char **statics;
+    size_t totalStatics;
+
+    char **backs;
+    size_t totalBacks;
+
+    char **forwards;
+    size_t totalForwards;
+} ConfigurationBird;
+
 typedef struct _ConfigurationOutput {
     char *name;
     ConfigurationOutputType type;
@@ -39,6 +54,9 @@ typedef struct _Configuration {
 
     ConfigurationOutput *outputs;
     size_t totalOutputs;
+
+    ConfigurationBird *birds;
+    size_t totalBirds;
 } Configuration;
 
 typedef enum _ScalarKey {
@@ -51,6 +69,9 @@ typedef enum _ScalarKey {
     ScalarKeyType,
     ScalarKeyPath,
     ScalarKeyPin,
+    ScalarKeyStatic,
+    ScalarKeyBack,
+    ScalarKeyForward,
 } ScalarKey;
 
 typedef enum _Section {
@@ -66,6 +87,9 @@ typedef struct _ParsingContext {
 
     ConfigurationOutput output;
     bool isInOutput;
+
+    ConfigurationBird bird;
+    bool isInBird;
 } ParsingContext;
 
 
@@ -76,10 +100,10 @@ static bool ConfigurationParse(ConfigurationRef self, yaml_parser_t * NONNULL pa
 static bool ConfigurationParseFromFile(ConfigurationRef self, const char * NONNULL path);
 static bool ConfigurationParseFromString(ConfigurationRef self, const char * NONNULL value);
 
+static void ConfigurationBirdDestroy(ConfigurationBird * NONNULL bird);
+static void ConfigurationBirdReset(ConfigurationBird * NONNULL bird);
 static void ConfigurationOutputDestroy(ConfigurationOutput * NONNULL output);
 static void ConfigurationOutputReset(ConfigurationOutput * NONNULL output);
-
-
 
 
 // MARK: - Lifecycle Methods
@@ -134,10 +158,22 @@ void ConfigurationDestroy(ConfigurationRef self) {
     self->totalOutputs = 0;
 
     for (size_t idx = 0; idx < tempTotalOutputs; idx++) {
-        ConfigurationOutputDestroy(tempOutputs + idx);
+        ConfigurationOutputDestroy(&tempOutputs[idx]);
     }
 
-    SAFE_DESTROY(self->outputs, free);
+    SAFE_DESTROY(tempOutputs, free);
+
+    ConfigurationBird *tempBirds = self->birds;
+    size_t tempTotalBirds = self->totalBirds;
+
+    self->birds = NULL;
+    self->totalBirds = 0;
+
+    for (size_t idx = 0; idx < tempTotalBirds; idx++) {
+        ConfigurationBirdDestroy(&tempBirds[idx]);
+    }
+
+    SAFE_DESTROY(tempBirds, free);
 
     free(self);
 }
@@ -146,6 +182,11 @@ void ConfigurationDestroy(ConfigurationRef self) {
 // MARK: - Parsing
 
 // TODO: Move these to the top
+
+static bool ConfigurationParseBirds(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
+static bool ConfigurationParseBirdsMappingEnd(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
+static bool ConfigurationParseBirdsScalar(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
+static bool ConfigurationParseBirdsSequenceEnd(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
 
 static bool ConfigurationParseNoSection(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
 static bool ConfigurationParseNoSectionScalar(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
@@ -175,50 +216,57 @@ static bool ConfigurationParse(ConfigurationRef self, yaml_parser_t *parser) {
             break;
         }
 
-        switch (event.type) {
-            case YAML_NO_EVENT:
-                printf("- No Event\n");
-                break;
-            case YAML_STREAM_START_EVENT:
-                printf("- Stream Start Event\n");
-                break;
-            case YAML_STREAM_END_EVENT:
-                printf("- Stream End Event\n");
-                break;
-            case YAML_DOCUMENT_START_EVENT:
-                printf("- Document Start Event\n");
-                break;
-            case YAML_DOCUMENT_END_EVENT:
-                printf("- Document End Event\n");
-                break;
-            case YAML_ALIAS_EVENT:
-                printf("- Alias Event\n");
-                break;
-            case YAML_SCALAR_EVENT:
-                printf("- Scalar Event: %s, %s, %s\n", event.data.scalar.anchor, event.data.scalar.tag, event.data.scalar.value);
-                break;
-            case YAML_SEQUENCE_START_EVENT:
-                printf("- Sequence Start Event\n");
-                break;
-            case YAML_SEQUENCE_END_EVENT:
-                printf("- Sequence End Event\n");
-                break;
-            case YAML_MAPPING_START_EVENT:
-                printf("- Mapping Start Event\n");
-                break;
-            case YAML_MAPPING_END_EVENT:
-                printf("- Mapping End Event\n");
-                break;
+        if (DumpParseEvents) {
+            switch (event.type) {
+                case YAML_NO_EVENT:
+                    printf("- No Event\n");
+                    break;
+                case YAML_STREAM_START_EVENT:
+                    printf("- Stream Start Event\n");
+                    break;
+                case YAML_STREAM_END_EVENT:
+                    printf("- Stream End Event\n");
+                    break;
+                case YAML_DOCUMENT_START_EVENT:
+                    printf("- Document Start Event\n");
+                    break;
+                case YAML_DOCUMENT_END_EVENT:
+                    printf("- Document End Event\n");
+                    break;
+                case YAML_ALIAS_EVENT:
+                    printf("- Alias Event\n");
+                    break;
+                case YAML_SCALAR_EVENT:
+                    printf("- Scalar Event: %s, %s, %s\n", event.data.scalar.anchor, event.data.scalar.tag, event.data.scalar.value);
+                    break;
+                case YAML_SEQUENCE_START_EVENT:
+                    printf("- Sequence Start Event\n");
+                    break;
+                case YAML_SEQUENCE_END_EVENT:
+                    printf("- Sequence End Event\n");
+                    break;
+                case YAML_MAPPING_START_EVENT:
+                    printf("- Mapping Start Event\n");
+                    break;
+                case YAML_MAPPING_END_EVENT:
+                    printf("- Mapping End Event\n");
+                    break;
+            }
         }
 
-        if (context.section == SectionNone) {
-            isDone = !ConfigurationParseNoSection(self, &event, &context);
-        } else if (context.section == SectionSettings) {
-            isDone = !ConfigurationParseSettings(self, &event, &context);
-        } else if (context.section == SectionOutputs) {
-            isDone = !ConfigurationParseOutput(self, &event, &context);
-        } else {
-            printf("Unhandled event for section %i\n", context.section);
+        switch (context.section) {
+            case SectionNone:
+                isDone = !ConfigurationParseNoSection(self, &event, &context);
+                break;
+            case SectionSettings:
+                isDone = !ConfigurationParseSettings(self, &event, &context);
+                break;
+            case SectionOutputs:
+                isDone = !ConfigurationParseOutput(self, &event, &context);
+                break;
+            case SectionBirds:
+                isDone = !ConfigurationParseBirds(self, &event, &context);
+                break;
         }
 
         if (event.type == YAML_STREAM_END_EVENT) {
@@ -230,6 +278,7 @@ static bool ConfigurationParse(ConfigurationRef self, yaml_parser_t *parser) {
     }
 
     ConfigurationOutputDestroy(&context.output);
+    ConfigurationBirdDestroy(&context.bird);
 
     return success;
 } 
@@ -270,6 +319,116 @@ static bool ConfigurationParseFromString(ConfigurationRef self, const char *valu
     yaml_parser_delete(&parser);
 
     return success;
+}
+
+static bool ConfigurationParseBirds(ConfigurationRef self, const yaml_event_t *event, ParsingContext *context) {
+    switch (event->type) {
+        case YAML_MAPPING_END_EVENT:
+            return ConfigurationParseBirdsMappingEnd(self, event, context);
+            break;
+        case YAML_SCALAR_EVENT:
+            return ConfigurationParseBirdsScalar(self, event, context);
+            break;
+        case YAML_SEQUENCE_END_EVENT:
+            return ConfigurationParseBirdsSequenceEnd(self, event, context);
+            break;
+        case YAML_MAPPING_START_EVENT:
+        case YAML_SEQUENCE_START_EVENT:
+            // NOTE: Nothing to do with these events
+            return true;
+            break;
+        default:
+            printf("Invalid event %i in Bird section\n", event->type);
+            return false;
+            break;
+    }
+}
+
+static bool ConfigurationParseBirdsMappingEnd(ConfigurationRef self, const yaml_event_t *event, ParsingContext *context) {
+    // Ignore if we are not in a bird, we're at the end of the section
+    if (!context->isInBird) {
+        context->section = SectionNone;
+        return true;
+    }
+
+    // Validate the bird
+    if (context->bird.name == NULL) {
+        printf("Bird is missing a name\n");
+        return false;
+    }
+
+    // Copy the bird in to place
+    self->birds = (ConfigurationBird *)realloc(self->birds, sizeof(ConfigurationBird) * (self->totalBirds + 1));
+    memcpy(self->birds + self->totalBirds, &context->bird, sizeof(ConfigurationBird));
+    self->totalBirds += 1;
+
+    // Clean up
+    ConfigurationBirdReset(&context->bird);
+    context->isInBird = false;
+
+    return true;
+}
+
+static bool ConfigurationParseBirdsScalar(ConfigurationRef self, const yaml_event_t *event, ParsingContext *context) {
+    bool success = false;
+
+    const char *value = (const char *)event->data.scalar.value;
+    size_t valueSize = event->data.scalar.length;
+
+    if (context->bird.name == NULL) { // If we have no scalar key, we're in the name portion
+        context->bird.name = strndup(value, valueSize);
+        context->isInBird = true;
+        success = true;
+    } else if (valueSize == 0) { // Empty scalars come after the name
+        success = true;
+    } else if (context->scalarKey == ScalarKeyNone) {
+        if (strcmp(value, "Static") == 0) {
+            context->scalarKey = ScalarKeyStatic;
+            success = true;
+        } else if (strcmp(value, "Back") == 0) {
+            context->scalarKey = ScalarKeyBack;
+            success = true;
+        } else if (strcmp(value, "Forward") == 0) {
+            context->scalarKey = ScalarKeyForward;
+            success = true;
+        } else {
+            printf("Invalid Bird section: %s\n", value);
+        } 
+    } else {
+        switch (context->scalarKey) {
+            case ScalarKeyStatic:
+                context->bird.statics = (char **)realloc(context->bird.statics, sizeof(char *) * (context->bird.totalStatics + 1));
+                context->bird.statics[context->bird.totalStatics] = strndup(value, valueSize);
+                context->bird.totalStatics += 1;
+                success = true;
+                break;
+            case ScalarKeyBack:
+                context->bird.backs = (char **)realloc(context->bird.backs, sizeof(char *) * (context->bird.totalBacks + 1));
+                context->bird.backs[context->bird.totalBacks] = strndup(value, valueSize);
+                context->bird.totalBacks += 1;
+                success = true;
+                break;
+            case ScalarKeyForward:
+                context->bird.forwards = (char **)realloc(context->bird.forwards, sizeof(char *) * (context->bird.totalForwards + 1));
+                context->bird.forwards[context->bird.totalForwards] = strndup(value, valueSize);
+                context->bird.totalForwards += 1;
+                success = true;
+                break;
+            default:
+                printf("Invalid scalar key in Bird: %i\n", context->scalarKey);
+                break;
+        }
+    }
+
+    return success;
+}
+
+static bool ConfigurationParseBirdsSequenceEnd(ConfigurationRef self, const yaml_event_t *event, ParsingContext *context) {
+    if (context->scalarKey != ScalarKeyNone) { // If we were in a scalar key, break out
+        context->scalarKey = ScalarKeyNone;
+    }
+
+    return true;
 }
 
 static bool ConfigurationParseNoSection(ConfigurationRef self, const yaml_event_t *event, ParsingContext *context) {
@@ -623,7 +782,114 @@ size_t ConfigurationGetTotalOutputs(const ConfigurationRef self) {
 }
 
 
+// MARK: - Birds
+
+const char * ConfigurationGetBirdBack(const ConfigurationRef self, size_t birdIdx, size_t idx) {
+    if (birdIdx >= self->totalBirds) {
+        return NULL;
+    }
+
+    const ConfigurationBird *bird = self->birds + birdIdx;
+
+    if (idx >= bird->totalBacks) {
+        return NULL;
+    }
+
+    return bird->backs[idx];
+}
+
+size_t ConfigurationGetBirdTotalBacks(const ConfigurationRef self, size_t idx) {
+    if (idx >= self->totalBirds) {
+        return 0;
+    }
+
+    return self->birds[idx].totalBacks;
+}
+
+const char * ConfigurationGetBirdForward(const ConfigurationRef self, size_t birdIdx, size_t idx) {
+    if (birdIdx >= self->totalBirds) {
+        return NULL;
+    }
+
+    const ConfigurationBird *bird = self->birds + birdIdx;
+
+    if (idx >= bird->totalForwards) {
+        return NULL;
+    }
+
+    return bird->forwards[idx];
+}
+
+size_t ConfigurationGetBirdTotalForwards(const ConfigurationRef self, size_t idx) {
+    if (idx >= self->totalBirds) {
+        return 0;
+    }
+
+    return self->birds[idx].totalForwards;
+}
+
+const char * ConfigurationGetBirdName(const ConfigurationRef self, size_t idx) {
+    if (idx >= self->totalBirds) {
+        return NULL;
+    }
+
+    return self->birds[idx].name;
+}
+
+const char * ConfigurationGetBirdStatic(const ConfigurationRef self, size_t birdIdx, size_t idx) {
+    if (birdIdx >= self->totalBirds) {
+        return NULL;
+    }
+
+    const ConfigurationBird *bird = self->birds + birdIdx;
+
+    if (idx >= bird->totalStatics) {
+        return NULL;
+    }
+
+    return bird->statics[idx];
+}
+
+size_t ConfigurationGetBirdTotalStatics(const ConfigurationRef self, size_t idx) {
+    if (idx >= self->totalBirds) {
+        return 0;
+    }
+
+    return self->birds[idx].totalStatics;
+}
+
+size_t ConfigurationGetTotalBirds(const ConfigurationRef self) {
+    return self->totalBirds;
+}
+
+
 // MARK: - Utilities
+
+static void ConfigurationBirdDestroy(ConfigurationBird *bird) {
+    SAFE_DESTROY(bird->name, free);
+
+    for (size_t idx = 0; idx < bird->totalStatics; idx++) {
+        SAFE_DESTROY(bird->statics[idx], free);
+    }
+
+    SAFE_DESTROY(bird->statics, free);
+
+    for (size_t idx = 0; idx < bird->totalBacks; idx++) {
+        SAFE_DESTROY(bird->backs[idx], free);
+    }
+
+    SAFE_DESTROY(bird->backs, free);
+
+    for (size_t idx = 0; idx < bird->totalForwards; idx++) {
+        SAFE_DESTROY(bird->forwards[idx], free);
+    }
+
+    SAFE_DESTROY(bird->forwards, free);
+}
+
+static void ConfigurationBirdReset(ConfigurationBird * NONNULL bird) {
+    memset(bird, 0, sizeof(ConfigurationBird));
+}
 
 static void ConfigurationOutputDestroy(ConfigurationOutput *output) {
     SAFE_DESTROY(output->name, free);
@@ -637,4 +903,11 @@ static void ConfigurationOutputDestroy(ConfigurationOutput *output) {
 
 static void ConfigurationOutputReset(ConfigurationOutput *output) {
     memset(output, 0, sizeof(ConfigurationOutput));
+}
+
+
+// MARK: - Debug
+
+void ConfigurationSetDumpParseEvents(bool dump) {
+    DumpParseEvents = dump;
 }

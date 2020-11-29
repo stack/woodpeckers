@@ -12,6 +12,7 @@
 #include "Macros.h"
 
 #include <inttypes.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 
@@ -109,6 +110,27 @@ ConfigurationOutputType ConfigurationGetOutputType(const ConfigurationRef NONNUL
 
 size_t ConfigurationGetTotalOutputs(const ConfigurationRef NONNULL configuration);
 
+
+// MARK: - Birds
+
+const char * NULLABLE ConfigurationGetBirdBack(const ConfigurationRef NONNULL configuration, size_t birdIx, size_t idx);
+size_t ConfigurationGetBirdTotalBacks(const ConfigurationRef NONNULL configuration, size_t idx);
+const char * NULLABLE ConfigurationGetBirdForward(const ConfigurationRef NONNULL configuration, size_t birdIx, size_t idx);
+size_t ConfigurationGetBirdTotalForwards(const ConfigurationRef NONNULL configuration, size_t idx);
+const char * NULLABLE ConfigurationGetBirdName(const ConfigurationRef NONNULL configuration, size_t idx);
+const char * NULLABLE ConfigurationGetBirdStatic(const ConfigurationRef NONNULL configuration, size_t birdIx, size_t idx);
+size_t ConfigurationGetBirdTotalStatics(const ConfigurationRef NONNULL configuration, size_t idx);
+
+size_t ConfigurationGetTotalBirds(const ConfigurationRef NONNULL configuration);
+
+
+// MARK: - Debug
+
+/**
+ * Dump the parsing events to log for debugging purposes.
+ * \param dump `true` to dump logs, otherwise `false`.
+ */
+void ConfigurationSetDumpParseEvents(bool dump);
 
 END_DECLS
 

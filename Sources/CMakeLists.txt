@@ -34,6 +34,7 @@ list(APPEND APPLICATION_SOURCES "${CMAKE_CURRENT_LIST_DIR}/main.c")
 
 add_executable(Woodpeckers-bin ${APPLICATION_SOURCES})
 
+target_include_directories(Woodpeckers-bin PRIVATE ${CMAKE_BINARY_DIR})
 target_link_libraries(Woodpeckers-bin Woodpeckers)
 
 set_target_properties(Woodpeckers-bin PROPERTIES OUTPUT_NAME Woodpeckers)

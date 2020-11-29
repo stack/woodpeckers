@@ -13,7 +13,12 @@
 
 #include <yaml.h>
 
+#include "Log.h"
+
+
 // MARK: - Constants & Globals
+
+#define TAG "Configuration"
 
 static bool DumpParseEvents = false;
 
@@ -217,37 +222,37 @@ static bool ConfigurationParse(ConfigurationRef self, yaml_parser_t *parser) {
         if (DumpParseEvents) {
             switch (event.type) {
                 case YAML_NO_EVENT:
-                    printf("- No Event\n");
+                    LogD(TAG, "Event: None");
                     break;
                 case YAML_STREAM_START_EVENT:
-                    printf("- Stream Start Event\n");
+                    LogD(TAG, "Event: Stream Start");
                     break;
                 case YAML_STREAM_END_EVENT:
-                    printf("- Stream End Event\n");
+                    LogD(TAG, "Event: Stream End");
                     break;
                 case YAML_DOCUMENT_START_EVENT:
-                    printf("- Document Start Event\n");
+                    LogD(TAG, "Event: Document Start");
                     break;
                 case YAML_DOCUMENT_END_EVENT:
-                    printf("- Document End Event\n");
+                    LogD(TAG, "Event: Document End");
                     break;
                 case YAML_ALIAS_EVENT:
-                    printf("- Alias Event\n");
+                    LogD(TAG, "Event: Alias");
                     break;
                 case YAML_SCALAR_EVENT:
-                    printf("- Scalar Event: %s, %s, %s\n", event.data.scalar.anchor, event.data.scalar.tag, event.data.scalar.value);
+                    LogD(TAG, "Event: Scalar: %s, %s, %s", event.data.scalar.anchor, event.data.scalar.tag, event.data.scalar.value);
                     break;
                 case YAML_SEQUENCE_START_EVENT:
-                    printf("- Sequence Start Event\n");
+                    LogD(TAG, "Event: Sequence Start");
                     break;
                 case YAML_SEQUENCE_END_EVENT:
-                    printf("- Sequence End Event\n");
+                    LogD(TAG, "Event: Sequence End");
                     break;
                 case YAML_MAPPING_START_EVENT:
-                    printf("- Mapping Start Event\n");
+                    LogD(TAG, "Event: Mapping Start");
                     break;
                 case YAML_MAPPING_END_EVENT:
-                    printf("- Mapping End Event\n");
+                    LogD(TAG, "Event: Mapping End");
                     break;
             }
         }
@@ -287,7 +292,7 @@ static bool ConfigurationParseFromFile(ConfigurationRef self, const char *path) 
     FILE *file = fopen(path, "r");
 
     if (file == NULL) {
-        printf("Failed to open configuration file for reading: %i", errno);
+        LogErrno(TAG, errno, "Failed to open configuration file for reading");
         goto parse_from_file_cleanup;
     }
 
@@ -336,7 +341,7 @@ static bool ConfigurationParseBirds(ConfigurationRef self, const yaml_event_t *e
             return true;
             break;
         default:
-            printf("Invalid event %i in Bird section\n", event->type);
+            LogE(TAG, "Invalid event %i in Bird section", event->type);
             return false;
             break;
     }
@@ -351,7 +356,7 @@ static bool ConfigurationParseBirdsMappingEnd(ConfigurationRef self, const yaml_
 
     // Validate the bird
     if (context->bird.name == NULL) {
-        printf("Bird is missing a name\n");
+        LogE(TAG, "Bird is missing a name");
         return false;
     }
 
@@ -390,7 +395,7 @@ static bool ConfigurationParseBirdsScalar(ConfigurationRef self, const yaml_even
             context->scalarKey = ScalarKeyForward;
             success = true;
         } else {
-            printf("Invalid Bird section: %s\n", value);
+            LogE(TAG, "Invalid Bird section: %s", value);
         } 
     } else {
         switch (context->scalarKey) {
@@ -413,7 +418,7 @@ static bool ConfigurationParseBirdsScalar(ConfigurationRef self, const yaml_even
                 success = true;
                 break;
             default:
-                printf("Invalid scalar key in Bird: %i\n", context->scalarKey);
+                LogE(TAG, "Invalid scalar key in Bird: %i", context->scalarKey);
                 break;
         }
     }
@@ -444,7 +449,7 @@ static bool ConfigurationParseNoSection(ConfigurationRef self, const yaml_event_
             return true;
             break;
         default:
-            printf("Invalid event %i without a section\n", event->type);
+            LogE(TAG, "Invalid event %i without a section", event->type);
             return false;
             break;
     }
@@ -469,7 +474,7 @@ static bool ConfigurationParseNoSectionScalar(ConfigurationRef self, const yaml_
         context->section = SectionBirds;
         success = true;
     } else {
-        printf("Invalid section name: %s\n", value);
+        LogE(TAG, "Invalid section name: %s", value);
         success = false;
     }
 
@@ -493,7 +498,7 @@ static bool ConfigurationParseOutput(ConfigurationRef self, const yaml_event_t *
             return true;
             break;
         default:
-            printf("Invalid event %i in Output section\n", event->type);
+            LogE(TAG, "Invalid event %i in Output section", event->type);
             return false;
             break;
     }
@@ -509,21 +514,21 @@ static bool ConfigurationParseOutputMappingEnd(ConfigurationRef NONNULL self, co
     // Validate the data
     ConfigurationOutput *output = &context->output;
     if (output->name == NULL) {
-        printf("Output processed without a name\n");
+        LogE(TAG, "Output processed without a name");
         return false;
     } else if (output->type == ConfigurationOutputTypeUnknown) {
-        printf("Output processed without a type\n");
+        LogE(TAG, "Output processed without a type");
         return false;
     } else if (output->type == ConfigurationOutputTypeMemory) {
         // Nothing to validate here
     } else if (output->type == ConfigurationOutputTypeFile) {
         if (output->file.path == NULL) {
-            printf("File output processed without a path\n");
+            LogE(TAG, "File output processed without a path");
             return false;
         }
     } else if (output->type == ConfigurationOutputTypeGPIO) {
         if (output->gpio.pin == -1) {
-            printf("GPIO output processed without a pin\n");
+            LogE(TAG, "GPIO output processed without a pin");
             return false;
         }
     }
@@ -575,13 +580,13 @@ static bool ConfigurationParseOutputScalar(ConfigurationRef NONNULL self, const 
             context->scalarKey = ScalarKeyPin;
             success = true;
         } else {
-            printf("Unhandled output scalar key: %s\n", value);
+            LogE(TAG, "Unhandled output scalar key: %s", value);
         }
     } else {
         switch (context->scalarKey) {
             case ScalarKeyType:
                 if (valueSize == 0) {
-                    printf("Empty output scalar value\n");
+                    LogE(TAG, "Empty output scalar value");
                 } else if (strcmp(value, "Memory") == 0) {
                     context->output.type = ConfigurationOutputTypeMemory;
                     success = true;
@@ -594,7 +599,7 @@ static bool ConfigurationParseOutputScalar(ConfigurationRef NONNULL self, const 
                     context->output.gpio.pin = -1;
                     success = true;
                 } else {
-                    printf("Unhandled output type: %s\n", value);
+                    LogE(TAG, "Unhandled output type: %s", value);
                 }
 
                 break;
@@ -607,7 +612,7 @@ static bool ConfigurationParseOutputScalar(ConfigurationRef NONNULL self, const 
                 success = true;
                 break;
             default:
-                printf("Unhandled output scalar key for value %s\n", value);
+                LogE(TAG, "Unhandled output scalar key for value %s", value);
                 break;
         }
 
@@ -630,7 +635,7 @@ static bool ConfigurationParseSettings(ConfigurationRef self, const yaml_event_t
             return true;
             break;
         default:
-            printf("Invalid event %i in Settings section\n", event->type);
+            LogE(TAG, "Invalid event %i in Settings section", event->type);
             return false;
             break;
     }
@@ -639,7 +644,7 @@ static bool ConfigurationParseSettings(ConfigurationRef self, const yaml_event_t
 static bool ConfigurationParseSettingsMappingEnd(ConfigurationRef self, const yaml_event_t *event, ParsingContext *context) {
     // If we ended without a full value, we've failed
     if (context->scalarKey != ScalarKeyNone) {
-        printf("Failed to find value for a Settings key\n");
+        LogE(TAG, "Failed to find value for a Settings key");
         return false;
     }
 
@@ -674,7 +679,7 @@ static bool ConfigurationParseSettingsScalar(ConfigurationRef self, const yaml_e
             context->scalarKey = ScalarKeyPeckWait;
             success = true;
         } else {
-            printf("Unhandled Settings key: %s\n", value);
+            LogE(TAG, "Unhandled Settings key: %s", value);
         }
     } else {
         switch (context->scalarKey) {
@@ -699,7 +704,7 @@ static bool ConfigurationParseSettingsScalar(ConfigurationRef self, const yaml_e
                 success = true;
                 break;
             default:
-                printf("Unhandled Settings value\n");
+                LogE(TAG, "Unhandled Settings value");
                 break;
         }
 

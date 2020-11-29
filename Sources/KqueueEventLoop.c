@@ -19,12 +19,15 @@
 #include <sys/time.h>
 #include <sys/types.h>
 
+#include "Log.h"
+
 
 // MARK: - Constants & Globals
 
 #define EVENTS_STEP 5
 #define EVENTS_TO_PROCESS 5
 #define INTERNAL_EVENT_ID UINT32_MAX
+#define TAG "EVENTLOOP"
 
 typedef struct _Event {
     bool isActive;
@@ -116,7 +119,7 @@ void EventLoopRunOnce(EventLoopRef self) {
     int eventsAvailable = kevent(self->kqueueFD, NULL, 0, events, EVENTS_TO_PROCESS, NULL);
 
     if (eventsAvailable == -1) {
-        printf("Failed to get the next events: %i\n", errno);
+        LogErrno(TAG, errno, "Failed to get the next events");
         return;
     }
 
@@ -128,7 +131,7 @@ void EventLoopRunOnce(EventLoopRef self) {
                 EventLoopHandleTimerEvent(self, (Event *)event->udata);
                 break;
             default:
-                printf("Unhandled event filter: %i\n", event->filter);
+                LogE(TAG, "Unhandled event filter: %i", event->filter);
                 break;
         }
     }
@@ -250,7 +253,7 @@ static bool EventLoopHasEvent(EventLoopRef self, EventID id, int16_t type) {
 void EventLoopAddTimer(EventLoopRef self, EventID id, uint32_t timeout, EventLoopTimerFiredCallback callback) {
     // Do nothing if the timer exists
     if (EventLoopHasEvent(self, id, EVFILT_TIMER)) {
-        printf("Timer %" PRIu32 " already exists\n", id);
+        LogE(TAG, "Timer %" PRIu32 " already exists", id);
         return;
     }
 
@@ -263,7 +266,7 @@ void EventLoopAddTimer(EventLoopRef self, EventID id, uint32_t timeout, EventLoo
     Event *event = EventLoopFindFreeEvent(self, EVFILT_TIMER);
 
     if (event == NULL) {
-        printf("Failed to find free space for timer event %" PRIu32 "\n", id);
+        LogE(TAG, "Failed to find free space for timer event %" PRIu32, id);
         return;
     }
 
@@ -274,7 +277,7 @@ void EventLoopAddTimer(EventLoopRef self, EventID id, uint32_t timeout, EventLoo
     int result = kevent(self->kqueueFD, &timerEvent, 1, NULL, 0, NULL);
 
     if (result == -1) {
-        printf("Failed to add timer event %" PRIu32 " to kqueue: %i\n", id, errno);
+        LogErrno(TAG, errno, "Failed to add timer event %" PRIu32 " to kqueue", id);
         return;
     }
 
@@ -309,7 +312,7 @@ void EventLoopRemoveTimer(EventLoopRef self, EventID id) {
     Event *event = EventLoopFindExistingEvent(self, id, EVFILT_TIMER);
 
     if (event == NULL) {
-        printf("Cannot remove timer %" PRIu32 ", which does not exist\n", id);
+        LogE(TAG, "Cannot remove timer %" PRIu32 ", which does not exist", id);
         return;
     }
 
@@ -319,7 +322,7 @@ void EventLoopRemoveTimer(EventLoopRef self, EventID id) {
     int result = kevent(self->kqueueFD, &timerEvent, 1, NULL, 0, NULL);
 
     if (result == -1) {
-        printf("Failed to remove timer event %" PRIu32 " from kqueue: %i\n", id, errno);
+        LogErrno(TAG, errno, "Failed to remove timer event %" PRIu32 " from kqueue", id);
     }
 
     event->shouldDeactivate = true;

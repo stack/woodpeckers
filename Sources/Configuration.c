@@ -100,6 +100,23 @@ static bool ConfigurationParse(ConfigurationRef self, yaml_parser_t * NONNULL pa
 static bool ConfigurationParseFromFile(ConfigurationRef self, const char * NONNULL path);
 static bool ConfigurationParseFromString(ConfigurationRef self, const char * NONNULL value);
 
+static bool ConfigurationParseBirds(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
+static bool ConfigurationParseBirdsMappingEnd(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
+static bool ConfigurationParseBirdsScalar(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
+static bool ConfigurationParseBirdsSequenceEnd(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
+
+static bool ConfigurationParseNoSection(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
+static bool ConfigurationParseNoSectionScalar(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
+
+static bool ConfigurationParseOutput(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
+static bool ConfigurationParseOutputMappingEnd(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
+static bool ConfigurationParseOutputMappingStart(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
+static bool ConfigurationParseOutputScalar(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
+
+static bool ConfigurationParseSettings(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
+static bool ConfigurationParseSettingsMappingEnd(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
+static bool ConfigurationParseSettingsScalar(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
+
 static void ConfigurationBirdDestroy(ConfigurationBird * NONNULL bird);
 static void ConfigurationBirdReset(ConfigurationBird * NONNULL bird);
 static void ConfigurationOutputDestroy(ConfigurationOutput * NONNULL output);
@@ -180,25 +197,6 @@ void ConfigurationDestroy(ConfigurationRef self) {
 
 
 // MARK: - Parsing
-
-// TODO: Move these to the top
-
-static bool ConfigurationParseBirds(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
-static bool ConfigurationParseBirdsMappingEnd(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
-static bool ConfigurationParseBirdsScalar(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
-static bool ConfigurationParseBirdsSequenceEnd(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
-
-static bool ConfigurationParseNoSection(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
-static bool ConfigurationParseNoSectionScalar(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
-
-static bool ConfigurationParseOutput(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
-static bool ConfigurationParseOutputMappingEnd(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
-static bool ConfigurationParseOutputMappingStart(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
-static bool ConfigurationParseOutputScalar(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
-
-static bool ConfigurationParseSettings(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
-static bool ConfigurationParseSettingsMappingEnd(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
-static bool ConfigurationParseSettingsScalar(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
 
 static bool ConfigurationParse(ConfigurationRef self, yaml_parser_t *parser) {
     bool isDone = false;

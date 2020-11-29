@@ -103,24 +103,112 @@ uint32_t ConfigurationGetPeckWait(const ConfigurationRef NONNULL configuration);
 
 // MARK: - Outputs
 
-const char * NULLABLE ConfigurationGetOutputName(const ConfigurationRef NONNULL, size_t idx);
-const char * NULLABLE ConfigurationGetOutputPath(const ConfigurationRef NONNULL, size_t idx);
-int ConfigurationGetOutputPin(const ConfigurationRef NONNULL, size_t idx);
-ConfigurationOutputType ConfigurationGetOutputType(const ConfigurationRef NONNULL, size_t idx);
+/**
+ * Get the name of an output at the given index.
+ * \param configuration The instance to inspect.
+ * \param idx The index of the output.
+ * \return The name of the output, or `NULL` if the output is invalid.
+ */
+const char * NULLABLE ConfigurationGetOutputName(const ConfigurationRef NONNULL configuration, size_t idx);
 
+/**
+ * Get the path of an output at the given index.
+ * \param configuration The instance to inspect.
+ * \param idx The index of the output.
+ * \return The path of the output, or `NULL` if the output is invalid.
+ */
+const char * NULLABLE ConfigurationGetOutputPath(const ConfigurationRef NONNULL configuration, size_t idx);
+
+/**
+ * Get the pin of an output at the given index.
+ * \param configuration The instance to inspect.
+ * \param idx The index of the output.
+ * \return The pin of the output, or `NULL` if the output is invalid.
+ */
+int ConfigurationGetOutputPin(const ConfigurationRef NONNULL configuration, size_t idx);
+
+/**
+ * Get the type of an output at the given index.
+ * \param configuration The instance to inspect.
+ * \param idx The index of the output.
+ * \return The type of the output.
+ */
+ConfigurationOutputType ConfigurationGetOutputType(const ConfigurationRef NONNULL configuration, size_t idx);
+
+/**
+ * Get the total number of outputs in the configuration.
+ * \param configuration The instance to inspect.
+ * \return The total number of outputs.
+ */
 size_t ConfigurationGetTotalOutputs(const ConfigurationRef NONNULL configuration);
 
 
 // MARK: - Birds
 
-const char * NULLABLE ConfigurationGetBirdBack(const ConfigurationRef NONNULL configuration, size_t birdIx, size_t idx);
+/**
+ * Get the name of the output to use for a bird back position at the given index.
+ * \param configuration The instance to inspect.
+ * \param birdIdx The index of the bird in the configuration.
+ * \param idx The index of the name.
+ * \return The name of the output, or `NULL` if the output is invalid.
+ */
+const char * NULLABLE ConfigurationGetBirdBack(const ConfigurationRef NONNULL configuration, size_t birdIdx, size_t idx);
+
+/**
+ * Get the total number of output names for a bird back position.
+ * \param configuration The instance to inspect.
+ * \param idx The index of the bird in the configuration.
+ * \return The number of output names, or 0 if the output is invalid.
+ */
 size_t ConfigurationGetBirdTotalBacks(const ConfigurationRef NONNULL configuration, size_t idx);
-const char * NULLABLE ConfigurationGetBirdForward(const ConfigurationRef NONNULL configuration, size_t birdIx, size_t idx);
+
+/**
+ * Get the name of the output to use for a bird forward position at the given index.
+ * \param configuration The instance to inspect.
+ * \param birdIdx The index of the bird in the configuration.
+ * \param idx The index of the name.
+ * \return The name of the output, or `NULL` if the output is invalid.
+ */
+const char * NULLABLE ConfigurationGetBirdForward(const ConfigurationRef NONNULL configuration, size_t birdIdx, size_t idx);
+
+/**
+ * Get the total number of output names for a bird forward position.
+ * \param configuration The instance to inspect.
+ * \param idx The index of the bird in the configuration.
+ * \return The number of output names, or 0 if the output is invalid.
+ */
 size_t ConfigurationGetBirdTotalForwards(const ConfigurationRef NONNULL configuration, size_t idx);
+
+/**
+ * Get the name of the bird at the given index.
+ * \param configuration The instance to inspect.
+ * \param idx The index of the bird.
+ * \return The name of the bird, or `NULL` if the bird is invalid.
+ */
 const char * NULLABLE ConfigurationGetBirdName(const ConfigurationRef NONNULL configuration, size_t idx);
-const char * NULLABLE ConfigurationGetBirdStatic(const ConfigurationRef NONNULL configuration, size_t birdIx, size_t idx);
+
+/**
+ * Get the name of the output to use for a bird static position at the given index.
+ * \param configuration The instance to inspect.
+ * \param birdIdx The index of the bird in the configuration.
+ * \param idx The index of the name.
+ * \return The name of the output, or `NULL` if the output is invalid.
+ */
+const char * NULLABLE ConfigurationGetBirdStatic(const ConfigurationRef NONNULL configuration, size_t birdIdx, size_t idx);
+
+/**
+ * Get the total number of output names for a bird static position.
+ * \param configuration The instance to inspect.
+ * \param idx The index of the bird in the configuration.
+ * \return The number of output names, or 0 if the output is invalid.
+ */
 size_t ConfigurationGetBirdTotalStatics(const ConfigurationRef NONNULL configuration, size_t idx);
 
+/**
+ * Get the total number of birds in the configuration.
+ * \param configuration The instance to inspect.
+ * \return The number of birds.
+ */
 size_t ConfigurationGetTotalBirds(const ConfigurationRef NONNULL configuration);
 
 

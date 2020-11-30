@@ -34,6 +34,7 @@ static struct option Options[] = {
 // MARK: - Prototypes
 
 static void PrintUsage(void);
+static void PrintVersion(void);
 
 
 // MARK: - Main
@@ -51,6 +52,10 @@ int main(int argc, char **argv) {
         }
 
         switch (result) {
+            case 'v':
+                PrintVersion();
+                return EXIT_SUCCESS;
+                break;
             case 'h':
                 PrintUsage();
                 return EXIT_SUCCESS;
@@ -111,4 +116,8 @@ static void PrintUsage() {
     printf("    -h, --help                Print this help message\n");
     printf("    -c, --config=CONFIG       Path to the required config file\n");
     printf("    -d, --debug               Run in debug mode\n");
+}
+
+static void PrintVersion() {
+    printf("%s\n", PROJECT_VERSION);
 }

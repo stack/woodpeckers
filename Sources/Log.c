@@ -76,7 +76,7 @@ void LogVA(LogLevel level, const char *tag, const char *format, va_list args) {
     strftime(timeBuffer, sizeof(timeBuffer), "%Y-%m-%d %H:%M:%S", nowLocal);
 
     if (ConsoleOutputEnabled) {
-        printf("[%s.%06ld]: %c/%-12s: %s\n", timeBuffer, (long)now.tv_usec, levelChar, tag, messageBuffer);
+        printf("[%s.%06ld]: %c/%-14s: %s\n", timeBuffer, (long)now.tv_usec, levelChar, tag, messageBuffer);
     }
 
     if (SystemOutputEnabled) {
@@ -97,7 +97,7 @@ void LogVA(LogLevel level, const char *tag, const char *format, va_list args) {
                 break;
         }
 
-        os_log_with_type(OS_LOG_DEFAULT, logType, "%c/%{public}-12s: %{public}s", levelChar, tag, messageBuffer);
+        os_log_with_type(OS_LOG_DEFAULT, logType, "%c/%{public}-14s: %{public}s", levelChar, tag, messageBuffer);
 #elif TARGET_PLATFORM_LINUX
         // TODO: syslog implementation here
 #endif

@@ -86,6 +86,7 @@ int main(int argc, char **argv) {
     LogI(TAG, "Woodpeckers %s", PROJECT_VERSION);
 
     // Load the configuration file
+    ConfigurationSetDumpParseEvents(true);
     ConfigurationRef configuration = ConfigurationCreateFromFile(configPath);
 
     if (configuration == NULL) {

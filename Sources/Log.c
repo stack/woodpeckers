@@ -25,11 +25,25 @@
 // MARK: - Constants & Globals
 
 static bool ConsoleOutputEnabled = true;
+static bool CallbackOutputEnabled = false;
 static bool SystemOutputEnabled = false;
+
+static LogCallback Callback  = NULL;
+
 static LogLevel GlobalLogLevel = LogLevelInfo;
 
 
 // MARK: - Initialization
+
+void LogEnableCallbackOutput(bool enabled, LogCallback NULLABLE callback) {
+    CallbackOutputEnabled = enabled;
+
+    if (enabled) {
+        Callback = callback;
+    } else {
+        Callback = NULL;
+    }
+}
 
 void LogEnableConsoleOutput(bool enabled) {
     ConsoleOutputEnabled = enabled;
@@ -74,6 +88,10 @@ void LogVA(LogLevel level, const char *tag, const char *format, va_list args) {
 
     char timeBuffer[64];
     strftime(timeBuffer, sizeof(timeBuffer), "%Y-%m-%d %H:%M:%S", nowLocal);
+
+    if (CallbackOutputEnabled && Callback != NULL) {
+        Callback(level, tag, messageBuffer);
+    }
 
     if (ConsoleOutputEnabled) {
         printf("[%s.%06ld]: %c/%-14s: %s\n", timeBuffer, (long)now.tv_usec, levelChar, tag, messageBuffer);

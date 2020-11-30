@@ -28,8 +28,14 @@ typedef enum _LogLevel {
 } LogLevel;
 
 
+// MARK: - Callbacks
+
+typedef void (* LogCallback)(LogLevel level, const char * NONNULL tag, const char * NONNULL message);
+
+
 // MARK: - Initialization
 
+void LogEnableCallbackOutput(bool enabled, LogCallback NULLABLE callback);
 void LogEnableConsoleOutput(bool enabled);
 void LogEnableSystemOutput(bool enabled);
 

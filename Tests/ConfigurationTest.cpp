@@ -8,14 +8,25 @@
 
 #include <gtest/gtest.h>
 
+#include <sstream>
+
 #include <Configuration.h>
+#include <Log.h>
 
 class ConfigurationTest : public ::testing::Test {
 
     protected:
 
+    static void LogMessage(LogLevel level, const char *tag, const char *message) {
+        std::cerr << "[          ] [" << tag << "/" << message << std::endl;
+    }
+
     void SetUp() override {
         configuration = nullptr;
+
+        LogEnableCallbackOutput(true, LogMessage);
+        LogEnableConsoleOutput(false);
+        LogEnableSystemOutput(false);
     }
 
     void TearDown() override {
@@ -227,7 +238,6 @@ TEST_F(ConfigurationTest, ParsesBirds) {
         "      - Ten\n";
 
     configuration = ConfigurationCreateFromString(stringValue);
-    
     ASSERT_NE(configuration, nullptr);
 
     size_t total = ConfigurationGetTotalBirds(configuration);
@@ -296,4 +306,187 @@ TEST_F(ConfigurationTest, ParsesBirds) {
     name = ConfigurationGetBirdForward(configuration, 1, 1);
     ASSERT_NE(name, nullptr);
     ASSERT_STREQ(name, "Ten");
+}
+
+TEST_F(ConfigurationTest, ParseEverything) {
+    const char *stringValue =
+        "%YAML 1.2\n"
+        "---\n"
+        "\n"
+        "Settings:\n"
+        "  MinWait: 1000\n"
+        "  MaxWait: 4000\n"
+        "  MinPecks: 1\n"
+        "  MaxPecks: 3\n"
+        "  PeckWait: 500\n"
+        "\n"
+        "Outputs:\n"
+        "  - Left Static 1:\n"
+        "    Type: Memory\n"
+        "  - Left Static 2:\n"
+        "    Type: Memory\n"
+        "  - Left Back 1:\n"
+        "    Type: Memory\n"
+        "  - Left Forward 1:\n"
+        "    Type: Memory\n"
+        "  - Right Static 1:\n"
+        "    Type: Memory\n"
+        "  - Right Static 2:\n"
+        "    Type: Memory\n"
+        "  - Right Back 1:\n"
+        "    Type: Memory\n"
+        "  - Right Forward 1:\n"
+        "    Type: Memory\n"
+        "\n"
+        "Birds:\n"
+        "  - Left:\n"
+        "    Static:\n"
+        "      - Left Static 1\n"
+        "      - Left Static 2\n"
+        "    Back:\n"
+        "      - Left Back 1\n"
+        "    Forward:\n"
+        "      - Left Forward 1\n"
+        "  - Right:\n"
+        "    Static:\n"
+        "      - Right Static 1\n"
+        "      - Right Static 2\n"
+        "    Back:\n"
+        "      - Right Back 1\n"
+        "    Forward:\n"
+        "      - Right Forward 1\n";
+
+    configuration = ConfigurationCreateFromString(stringValue);
+    ASSERT_NE(configuration, nullptr);
+
+    // Settings
+
+    uint32_t value = ConfigurationGetMinWait(configuration);
+    ASSERT_EQ(value, 1000);
+
+    value = ConfigurationGetMaxWait(configuration);
+    ASSERT_EQ(value, 4000);
+
+    value = ConfigurationGetMinPecks(configuration);
+    ASSERT_EQ(value, 1);
+
+    value = ConfigurationGetMaxPecks(configuration);
+    ASSERT_EQ(value, 3);
+
+    value = ConfigurationGetPeckWait(configuration);
+    ASSERT_EQ(value, 500);
+
+    // Outputs
+
+    size_t count = ConfigurationGetTotalOutputs(configuration);
+    ASSERT_EQ(count, 8);
+
+    ConfigurationOutputType type = ConfigurationGetOutputType(configuration, 0);
+    ASSERT_EQ(type, ConfigurationOutputTypeMemory);
+
+    const char *name = ConfigurationGetOutputName(configuration, 0);
+    ASSERT_STREQ(name, "Left Static 1");
+
+    type = ConfigurationGetOutputType(configuration, 1);
+    ASSERT_EQ(type, ConfigurationOutputTypeMemory);
+
+    name = ConfigurationGetOutputName(configuration, 1);
+    ASSERT_STREQ(name, "Left Static 2");
+
+    type = ConfigurationGetOutputType(configuration, 2);
+    ASSERT_EQ(type, ConfigurationOutputTypeMemory);
+
+    name = ConfigurationGetOutputName(configuration, 2);
+    ASSERT_STREQ(name, "Left Back 1");
+
+    type = ConfigurationGetOutputType(configuration, 3);
+    ASSERT_EQ(type, ConfigurationOutputTypeMemory);
+
+    name = ConfigurationGetOutputName(configuration, 3);
+    ASSERT_STREQ(name, "Left Forward 1");
+
+    type = ConfigurationGetOutputType(configuration, 4);
+    ASSERT_EQ(type, ConfigurationOutputTypeMemory);
+
+    name = ConfigurationGetOutputName(configuration, 4);
+    ASSERT_STREQ(name, "Right Static 1");
+
+    type = ConfigurationGetOutputType(configuration, 5);
+    ASSERT_EQ(type, ConfigurationOutputTypeMemory);
+
+    name = ConfigurationGetOutputName(configuration, 5);
+    ASSERT_STREQ(name, "Right Static 2");
+
+    type = ConfigurationGetOutputType(configuration, 6);
+    ASSERT_EQ(type, ConfigurationOutputTypeMemory);
+
+    name = ConfigurationGetOutputName(configuration, 6);
+    ASSERT_STREQ(name, "Right Back 1");
+
+    type = ConfigurationGetOutputType(configuration, 7);
+    ASSERT_EQ(type, ConfigurationOutputTypeMemory);
+
+    name = ConfigurationGetOutputName(configuration, 7);
+    ASSERT_STREQ(name, "Right Forward 1");
+
+    // Birds
+
+    size_t total = ConfigurationGetTotalBirds(configuration);
+    ASSERT_EQ(total, 2);
+
+    name = ConfigurationGetBirdName(configuration, 0);
+    ASSERT_STREQ(name, "Left");
+
+    total = ConfigurationGetBirdTotalStatics(configuration, 0);
+    ASSERT_EQ(total, 2);
+
+    name = ConfigurationGetBirdStatic(configuration, 0, 0);
+    ASSERT_NE(name, nullptr);
+    ASSERT_STREQ(name, "Left Static 1");
+
+    name = ConfigurationGetBirdStatic(configuration, 0, 1);
+    ASSERT_NE(name, nullptr);
+    ASSERT_STREQ(name, "Left Static 2");
+
+    total = ConfigurationGetBirdTotalBacks(configuration, 0);
+    ASSERT_EQ(total, 1);
+
+    name = ConfigurationGetBirdBack(configuration, 0, 0);
+    ASSERT_NE(name, nullptr);
+    ASSERT_STREQ(name, "Left Back 1");
+
+    total = ConfigurationGetBirdTotalForwards(configuration, 0);
+    ASSERT_EQ(total, 1);
+
+    name = ConfigurationGetBirdForward(configuration, 0, 0);
+    ASSERT_NE(name, nullptr);
+    ASSERT_STREQ(name, "Left Forward 1");
+
+    name = ConfigurationGetBirdName(configuration, 1);
+    ASSERT_STREQ(name, "Right");
+
+    total = ConfigurationGetBirdTotalStatics(configuration, 1);
+    ASSERT_EQ(total, 2);
+
+    name = ConfigurationGetBirdStatic(configuration, 1, 0);
+    ASSERT_NE(name, nullptr);
+    ASSERT_STREQ(name, "Right Static 1");
+
+    name = ConfigurationGetBirdStatic(configuration, 1, 1);
+    ASSERT_NE(name, nullptr);
+    ASSERT_STREQ(name, "Right Static 2");
+
+    total = ConfigurationGetBirdTotalBacks(configuration, 1);
+    ASSERT_EQ(total, 1);
+
+    name = ConfigurationGetBirdBack(configuration, 1, 0);
+    ASSERT_NE(name, nullptr);
+    ASSERT_STREQ(name, "Right Back 1");
+
+    total = ConfigurationGetBirdTotalForwards(configuration, 1);
+    ASSERT_EQ(total, 1);
+
+    name = ConfigurationGetBirdForward(configuration, 1, 0);
+    ASSERT_NE(name, nullptr);
+    ASSERT_STREQ(name, "Right Forward 1");
 }

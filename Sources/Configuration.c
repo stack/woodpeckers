@@ -117,6 +117,7 @@ static bool ConfigurationParseOutput(ConfigurationRef NONNULL self, const yaml_e
 static bool ConfigurationParseOutputMappingEnd(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
 static bool ConfigurationParseOutputMappingStart(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
 static bool ConfigurationParseOutputScalar(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
+static bool ConfigurationParseOutputSequenceEnd(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
 
 static bool ConfigurationParseSettings(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
 static bool ConfigurationParseSettingsMappingEnd(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context);
@@ -493,6 +494,8 @@ static bool ConfigurationParseOutput(ConfigurationRef self, const yaml_event_t *
             return ConfigurationParseOutputMappingStart(self, event, context);
             break;
         case YAML_SEQUENCE_END_EVENT:
+            return ConfigurationParseOutputSequenceEnd(self, event, context);
+            break;
         case YAML_SEQUENCE_START_EVENT:
             // NOTE: Nothing to do with these events
             return true;
@@ -504,7 +507,7 @@ static bool ConfigurationParseOutput(ConfigurationRef self, const yaml_event_t *
     }
 }
 
-static bool ConfigurationParseOutputMappingEnd(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context) {
+static bool ConfigurationParseOutputMappingEnd(ConfigurationRef self, const yaml_event_t *event, ParsingContext *context) {
     // If we ended outside of an output, we end the section
     if (!context->isInOutput) {
         context->section = SectionNone;
@@ -545,7 +548,7 @@ static bool ConfigurationParseOutputMappingEnd(ConfigurationRef NONNULL self, co
     return true;
 }
 
-static bool ConfigurationParseOutputMappingStart(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context) {
+static bool ConfigurationParseOutputMappingStart(ConfigurationRef self, const yaml_event_t *event, ParsingContext *context) {
     // Reset the scratch output for more parsing
     ConfigurationOutputReset(&context->output);
 
@@ -558,7 +561,7 @@ static bool ConfigurationParseOutputMappingStart(ConfigurationRef NONNULL self, 
     return true;
 }
 
-static bool ConfigurationParseOutputScalar(ConfigurationRef NONNULL self, const yaml_event_t * NONNULL event, ParsingContext * NONNULL context) {
+static bool ConfigurationParseOutputScalar(ConfigurationRef self, const yaml_event_t *event, ParsingContext *context) {
     bool success = false;
 
     const char *value = (const char *)event->data.scalar.value;
@@ -620,6 +623,12 @@ static bool ConfigurationParseOutputScalar(ConfigurationRef NONNULL self, const 
     }
 
     return success;
+}
+
+static bool ConfigurationParseOutputSequenceEnd(ConfigurationRef self, const yaml_event_t *event, ParsingContext *context) {
+    // End of the sequence ends the section
+    context->section = SectionNone;
+    return true;
 }
 
 static bool ConfigurationParseSettings(ConfigurationRef self, const yaml_event_t *event, ParsingContext *context) {

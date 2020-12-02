@@ -8,6 +8,8 @@
 
 #include "config.h"
 
+#include "Macros.h"
+
 #include <getopt.h>
 #include <inttypes.h>
 #include <stdint.h>
@@ -15,8 +17,9 @@
 #include <string.h>
 
 #include "Configuration.h"
-#include "Macros.h"
+#include "Controller.h"
 #include "Log.h"
+
 
 // MARK: - Constants & Globals
 
@@ -91,7 +94,6 @@ int main(int argc, char **argv) {
     LogI(TAG, "Woodpeckers %s", PROJECT_VERSION);
 
     // Load the configuration file
-    ConfigurationSetDumpParseEvents(true);
     ConfigurationRef configuration = ConfigurationCreateFromFile(configPath);
 
     if (configuration == NULL) {
@@ -101,8 +103,22 @@ int main(int argc, char **argv) {
 
     LogI(TAG, "Loaded configuration from %s", configPath);
 
-    // Clean up
+    // Build the controller
+    ControllerRef controller = ControllerCreate();
+
+    ControllerSetMinWait(controller, ConfigurationGetMinWait(configuration));
+    ControllerSetMaxWait(controller, ConfigurationGetMaxWait(configuration));
+    ControllerSetMinPecks(controller, ConfigurationGetMinPecks(configuration));
+    ControllerSetMaxPecks(controller, ConfigurationGetMaxPecks(configuration));
+    ControllerSetPeckWait(controller, ConfigurationGetPeckWait(configuration));
+
     SAFE_DESTROY(configuration, ConfigurationDestroy);
+
+    // Run forever
+    ControllerRun(controller);
+
+    // Clean up
+    ControllerDestroy(controller);
 
     return EXIT_SUCCESS;
 }

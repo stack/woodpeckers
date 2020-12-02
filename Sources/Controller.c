@@ -40,7 +40,16 @@ typedef struct _Controller {
     uint32_t peckWait;
 
     EventLoopRef eventLoop;
+
+    ControllerState state;
 } Controller;
+
+
+// MARK: - Prototypes
+
+static void ControllerChangeState(ControllerRef NONNULL controller, ControllerState newState);
+
+static const char * ControllerStateToString(ControllerState state);
 
 
 // MARK: - Lifecycle Methods
@@ -68,8 +77,12 @@ void ControllerDestroy(ControllerRef self) {
 
 // MARK: - Running
 
+static void ControllerChangeState(ControllerRef self, ControllerState newState) {
+    LogI(TAG, "Changing state from %s to %s", ControllerStateToString(self->state), ControllerStateToString(newState));
+}
+
 void ControllerRun(ControllerRef NONNULL self) {
-    // TODO: Switch to start up
+    ControllerChangeState(self, ControllerStateStartup);
 
     EventLoopRun(self->eventLoop);
 }
@@ -95,4 +108,24 @@ void ControllerSetMaxPecks(ControllerRef self, uint32_t value) {
 
 void ControllerSetPeckWait(ControllerRef self, uint32_t value) {
     self->peckWait = value;
+}
+
+
+// MARK: - Utilities
+
+static const char * ControllerStateToString(ControllerState state) {
+    switch (state) {
+        case ControllerStateInitial:
+            return "Initial";
+            break;
+        case ControllerStateStartup:
+            return "Startup";
+            break;
+        case ControllerStateWaiting:
+            return "Waiting";
+            break;
+        case ControllerStatePecking:
+            return "Pecking";
+            break;
+    }
 }

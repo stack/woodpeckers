@@ -94,7 +94,7 @@ void LogVA(LogLevel level, const char *tag, const char *format, va_list args) {
     }
 
     if (ConsoleOutputEnabled) {
-        printf("[%s.%06ld]: %c/%-14s: %s\n", timeBuffer, (long)now.tv_usec, levelChar, tag, messageBuffer);
+        printf("%s.%06ld %c %-14s %s\n", timeBuffer, (long)now.tv_usec, levelChar, tag, messageBuffer);
     }
 
     if (SystemOutputEnabled) {

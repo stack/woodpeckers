@@ -33,6 +33,20 @@ typedef enum _ControllerState {
     ControllerStatePecking,
 } ControllerState;
 
+typedef struct _Bird {
+    char *name;
+
+    // NOTE: These arrays do not out the outputs
+    OutputRef *statics;
+    size_t totalStatics;
+
+    OutputRef *backs;
+    size_t totalBacks;
+
+    OutputRef *forwards;
+    size_t totalForwards;
+} Bird;
+
 typedef struct _Controller {
     uint32_t minWait;
     uint32_t maxWait;
@@ -46,6 +60,9 @@ typedef struct _Controller {
 
     OutputRef *outputs;
     size_t totalOutputs;
+
+    Bird *birds;
+    size_t totalBirds;
 } Controller;
 
 
@@ -55,7 +72,9 @@ static void ControllerChangeState(ControllerRef NONNULL controller, ControllerSt
 
 static void ControllerAppendOutput(ControllerRef NONNULL controller, OutputRef NONNULL output);
 
-static bool ControlOutputExists(ControllerRef NONNULL self, const char * NONNULL name);
+static bool ControllerBirdExists(ControllerRef NONNULL self, const char * NONNULL name);
+static OutputRef NULLABLE ControllerFindOutput(ControllerRef NONNULL self, const char * NONNULL name);
+static bool ControllerOutputExists(ControllerRef NONNULL self, const char * NONNULL name);
 static const char * ControllerStateToString(ControllerState state);
 
 
@@ -78,6 +97,15 @@ ControllerRef ControllerCreate() {
 
 void ControllerDestroy(ControllerRef self) {
     SAFE_DESTROY(self->eventLoop, EventLoopDestroy);
+
+    for (size_t idx = 0; idx < self->totalBirds; idx++) {
+        SAFE_DESTROY(self->birds[idx].statics, free);
+        SAFE_DESTROY(self->birds[idx].backs, free);
+        SAFE_DESTROY(self->birds[idx].forwards, free);
+        SAFE_DESTROY(self->birds[idx].name, free);
+    }
+
+    SAFE_DESTROY(self->birds, free);
 
     for (size_t idx = 0; idx < self->totalOutputs; idx++) {
         SAFE_DESTROY(self->outputs[idx], OutputDestroy);
@@ -128,8 +156,8 @@ void ControllerSetPeckWait(ControllerRef self, uint32_t value) {
 // MARK: - Outputs Setup
 
 bool ControllerAddFileOutput(ControllerRef self, const char *name, const char *path) {
-    if (ControlOutputExists(self, name)) {
-        LogE(TAG, "Cannot add file output \"%s\" as another output has that name");
+    if (ControllerOutputExists(self, name)) {
+        LogE(TAG, "Cannot add file output \"%s\" as another output has that name", name);
         return false;
     }
 
@@ -140,8 +168,8 @@ bool ControllerAddFileOutput(ControllerRef self, const char *name, const char *p
 }
 
 bool ControllerAddGPIOOutput(ControllerRef self, const char *name, int pin) {
-    if (ControlOutputExists(self, name)) {
-        LogE(TAG, "Cannot add GPIO output \"%s\" as another output has that name");
+    if (ControllerOutputExists(self, name)) {
+        LogE(TAG, "Cannot add GPIO output \"%s\" as another output has that name", name);
         return false;
     }
 
@@ -152,8 +180,8 @@ bool ControllerAddGPIOOutput(ControllerRef self, const char *name, int pin) {
 }
 
 bool ControllerAddMemoryOutput(ControllerRef self, const char *name) {
-    if (ControlOutputExists(self, name)) {
-        LogE(TAG, "Cannot add Memory output \"%s\" as another output has that name");
+    if (ControllerOutputExists(self, name)) {
+        LogE(TAG, "Cannot add Memory output \"%s\" as another output has that name", name);
         return false;
     }
 
@@ -170,9 +198,96 @@ static void ControllerAppendOutput(ControllerRef self, OutputRef output) {
 }
 
 
+// MARK: - Birds Setup
+
+bool ControllerAddBird(ControllerRef self, const char *name, const char **statics, size_t totalStatics, const char **backs, size_t totalBacks, const char **forwards, size_t totalForwards) {
+    if (ControllerBirdExists(self, name)) {
+        LogE(TAG, "Cannot add Bird \"%s\" as another bird has that name", name);
+        return false;
+    }
+
+    self->birds = (Bird *)realloc(self->birds, sizeof(Bird) * (self->totalBirds + 1));
+    Bird *bird = self->birds + self->totalBirds;
+    self->totalBirds += 1;
+
+    memset(bird, 0, sizeof(Bird));
+
+    bird->name = strdup(name);
+    bird->statics = (OutputRef *)calloc(totalStatics, sizeof(OutputRef));
+    bird->backs = (OutputRef *)calloc(totalBacks, sizeof(OutputRef));
+    bird->forwards = (OutputRef *)calloc(totalForwards, sizeof(OutputRef));
+
+    for (size_t idx = 0; idx < totalStatics; idx++) {
+        OutputRef output = ControllerFindOutput(self, statics[idx]);
+
+        if (output == NULL) {
+            LogE(TAG, "Cannot add output \"%s\" to bird \"%s\" because it does not exist", statics[idx], name);
+            return false;
+        }
+
+        bird->statics[bird->totalStatics] = output;
+        bird->totalStatics += 1;
+    }
+
+    for (size_t idx = 0; idx < totalBacks; idx++) {
+        OutputRef output = ControllerFindOutput(self, backs[idx]);
+
+        if (output == NULL) {
+            LogE(TAG, "Cannot add output \"%s\" to bird \"%s\" because it does not exist", backs[idx], name);
+            return false;
+        }
+
+        bird->backs[bird->totalBacks] = output;
+        bird->totalBacks += 1;
+    }
+
+    for (size_t idx = 0; idx < totalForwards; idx++) {
+        OutputRef output = ControllerFindOutput(self, forwards[idx]);
+
+        if (output == NULL) {
+            LogE(TAG, "Cannot add output \"%s\" to bird \"%s\" because it does not exist", forwards[idx], name);
+            return false;
+        }
+
+        bird->backs[bird->totalForwards] = output;
+        bird->totalForwards += 1;
+    }
+
+    return true;
+}
+
+
 // MARK: - Utilities
 
-static bool ControlOutputExists(ControllerRef self, const char *name) {
+static bool ControllerBirdExists(ControllerRef self, const char *name) {
+    bool exists = false;
+
+    for (size_t idx = 0; idx < self->totalBirds; idx++) {
+        if (strcmp(self->birds[idx].name, name) == 0) {
+            exists = true;
+            break;
+        }
+    }
+
+    return exists;
+}
+
+static OutputRef ControllerFindOutput(ControllerRef self, const char *name) {
+    OutputRef output = NULL;
+
+    for (size_t idx = 0; idx < self->totalOutputs; idx++) {
+        const char *outputName = OutputGetName(self->outputs[idx]);
+
+        if (strcmp(outputName, name) == 0) {
+            output = self->outputs[idx];
+            break;
+        }
+    }
+
+    return output;
+}
+
+static bool ControllerOutputExists(ControllerRef self, const char *name) {
     bool exists = false;
 
     for (size_t idx = 0; idx < self->totalOutputs; idx++) {

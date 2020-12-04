@@ -14,6 +14,7 @@
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 
 BEGIN_DECLS
@@ -93,6 +94,10 @@ void ControllerSetPeckWait(ControllerRef NONNULL controller, uint32_t value);
 bool ControllerAddFileOutput(ControllerRef NONNULL controller, const char * NONNULL name, const char * NONNULL path);
 bool ControllerAddGPIOOutput(ControllerRef NONNULL controller, const char * NONNULL name, int pin);
 bool ControllerAddMemoryOutput(ControllerRef NONNULL controller, const char * NONNULL name);
+
+// MARK: - Birds Setup
+
+bool ControllerAddBird(ControllerRef NONNULL controller, const char * NONNULL name, const char * NONNULL * NONNULL statics, size_t totalStatics, const char * NONNULL * NONNULL backs, size_t totalBacks, const char * NONNULL * NONNULL forwards, size_t totalForwards);
 
 END_DECLS
 

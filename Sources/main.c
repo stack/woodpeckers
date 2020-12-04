@@ -23,6 +23,7 @@
 
 // MARK: - Constants & Globals
 
+#define MAX_OUTPUTS 16
 #define TAG "Main"
 
 static struct option Options[] = {
@@ -142,6 +143,39 @@ int main(int argc, char **argv) {
 
         if (!success) {
             LogE(TAG, "Failed to add output \"%s\". Aborting.", name);
+            return EXIT_FAILURE;
+        }
+    }
+
+    size_t totalBirds = ConfigurationGetTotalBirds(configuration);
+
+    for (size_t birdIdx = 0; birdIdx < totalBirds; birdIdx++) {
+        const char *name = ConfigurationGetBirdName(configuration, birdIdx);
+
+        size_t totalStatics = ConfigurationGetBirdTotalStatics(configuration, birdIdx);
+        size_t totalBacks = ConfigurationGetBirdTotalBacks(configuration, birdIdx);
+        size_t totalForwards = ConfigurationGetBirdTotalForwards(configuration, birdIdx);
+
+        const char *statics[MAX_OUTPUTS];
+        const char *backs[MAX_OUTPUTS];
+        const char *forwards[MAX_OUTPUTS];
+
+        for (size_t idx = 0; idx < totalStatics; idx++) {
+            statics[idx] = ConfigurationGetBirdStatic(configuration, birdIdx, idx);
+        }
+
+        for (size_t idx = 0; idx < totalBacks; idx++) {
+            backs[idx] = ConfigurationGetBirdBack(configuration, birdIdx, idx);
+        }
+
+        for (size_t idx = 0; idx < totalForwards; idx++) {
+            forwards[idx] = ConfigurationGetBirdForward(configuration, birdIdx, idx);
+        }
+
+        bool success = ControllerAddBird(controller, name, statics, totalStatics, backs, totalBacks, forwards, totalForwards);
+
+        if (!success) {
+            LogE(TAG, "Failed to add bird \"%s\". Aborting.", name);
             return EXIT_FAILURE;
         }
     }

@@ -12,6 +12,7 @@
 #include "Macros.h"
 
 #include <inttypes.h>
+#include <stdbool.h>
 #include <stdint.h>
 
 
@@ -49,7 +50,7 @@ void ControllerDestroy(ControllerRef NONNULL controller);
 void ControllerRun(ControllerRef NONNULL controller);
 
 
-// MARK: - Properties
+// MARK: - Properties Setup
 
 /**
  * Set the minimum wait time between peck sequences.
@@ -85,6 +86,13 @@ void ControllerSetMaxPecks(ControllerRef NONNULL controller, uint32_t value);
  * \param value The time in milliseconds between peck movements.
  */
 void ControllerSetPeckWait(ControllerRef NONNULL controller, uint32_t value);
+
+
+// MARK: - Outputs Setup
+
+bool ControllerAddFileOutput(ControllerRef NONNULL controller, const char * NONNULL name, const char * NONNULL path);
+bool ControllerAddGPIOOutput(ControllerRef NONNULL controller, const char * NONNULL name, int pin);
+bool ControllerAddMemoryOutput(ControllerRef NONNULL controller, const char * NONNULL name);
 
 END_DECLS
 

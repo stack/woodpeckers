@@ -13,6 +13,7 @@
 
 #include "EventLoop.h"
 #include "Log.h"
+#include "Output.h"
 
 
 // MARK: - Constants & Globals
@@ -42,6 +43,9 @@ typedef struct _Controller {
     EventLoopRef eventLoop;
 
     ControllerState state;
+
+    OutputRef *outputs;
+    size_t totalOutputs;
 } Controller;
 
 
@@ -49,7 +53,11 @@ typedef struct _Controller {
 
 static void ControllerChangeState(ControllerRef NONNULL controller, ControllerState newState);
 
+static void ControllerAppendOutput(ControllerRef NONNULL controller, OutputRef NONNULL output);
+
+static bool ControlOutputExists(ControllerRef NONNULL self, const char * NONNULL name);
 static const char * ControllerStateToString(ControllerState state);
+
 
 
 // MARK: - Lifecycle Methods
@@ -71,6 +79,12 @@ ControllerRef ControllerCreate() {
 void ControllerDestroy(ControllerRef self) {
     SAFE_DESTROY(self->eventLoop, EventLoopDestroy);
 
+    for (size_t idx = 0; idx < self->totalOutputs; idx++) {
+        SAFE_DESTROY(self->outputs[idx], OutputDestroy);
+    }
+
+    SAFE_DESTROY(self->outputs, free);
+
     free(self);
 }
 
@@ -88,7 +102,7 @@ void ControllerRun(ControllerRef NONNULL self) {
 }
 
 
-// MARK: - Properties
+// MARK: - Properties Setup
 
 void ControllerSetMinWait(ControllerRef self, uint32_t value) {
     self->minWait = value;
@@ -111,7 +125,67 @@ void ControllerSetPeckWait(ControllerRef self, uint32_t value) {
 }
 
 
+// MARK: - Outputs Setup
+
+bool ControllerAddFileOutput(ControllerRef self, const char *name, const char *path) {
+    if (ControlOutputExists(self, name)) {
+        LogE(TAG, "Cannot add file output \"%s\" as another output has that name");
+        return false;
+    }
+
+    OutputRef output = OutputCreateFile(name, path);
+    ControllerAppendOutput(self, output);
+
+    return true;
+}
+
+bool ControllerAddGPIOOutput(ControllerRef self, const char *name, int pin) {
+    if (ControlOutputExists(self, name)) {
+        LogE(TAG, "Cannot add GPIO output \"%s\" as another output has that name");
+        return false;
+    }
+
+    OutputRef output = OutputCreateGPIO(name, pin);
+    ControllerAppendOutput(self, output);
+
+    return true;
+}
+
+bool ControllerAddMemoryOutput(ControllerRef self, const char *name) {
+    if (ControlOutputExists(self, name)) {
+        LogE(TAG, "Cannot add Memory output \"%s\" as another output has that name");
+        return false;
+    }
+
+    OutputRef output = OutputCreateMemory(name);
+    ControllerAppendOutput(self, output);
+
+    return true;
+}
+
+static void ControllerAppendOutput(ControllerRef self, OutputRef output) {
+    self->outputs = (OutputRef *)realloc(self->outputs, sizeof(OutputRef) * (self->totalOutputs + 1));
+    self->outputs[self->totalOutputs] = output;
+    self->totalOutputs += 1;
+}
+
+
 // MARK: - Utilities
+
+static bool ControlOutputExists(ControllerRef self, const char *name) {
+    bool exists = false;
+
+    for (size_t idx = 0; idx < self->totalOutputs; idx++) {
+        const char *outputName = OutputGetName(self->outputs[idx]);
+
+        if (strcmp(outputName, name) == 0) {
+            exists = true;
+            break;
+        }
+    }
+
+    return exists;
+}
 
 static const char * ControllerStateToString(ControllerState state) {
     switch (state) {

@@ -112,6 +112,40 @@ int main(int argc, char **argv) {
     ControllerSetMaxPecks(controller, ConfigurationGetMaxPecks(configuration));
     ControllerSetPeckWait(controller, ConfigurationGetPeckWait(configuration));
 
+    size_t totalOutputs = ConfigurationGetTotalOutputs(configuration);
+
+    for (size_t idx = 0; idx < totalOutputs; idx++) {
+        const char *name = ConfigurationGetOutputName(configuration, idx);
+        ConfigurationOutputType type = ConfigurationGetOutputType(configuration, idx);
+
+        const char *path = NULL;
+        int pin = -1;
+
+        bool success = false;
+
+        switch (type) {
+            case ConfigurationOutputTypeFile:
+                path = ConfigurationGetOutputPath(configuration, idx);
+                success = ControllerAddFileOutput(controller, name, path);
+                break;
+            case ConfigurationOutputTypeGPIO:
+                pin = ConfigurationGetOutputPin(configuration, idx);
+                success = ControllerAddGPIOOutput(controller, name, pin);
+                break;
+            case ConfigurationOutputTypeMemory:
+                success = ControllerAddMemoryOutput(controller, name);
+                break;
+            default:
+                LogE(TAG, "Unhandled configuration output type: %i", type);
+                break;
+        }
+
+        if (!success) {
+            LogE(TAG, "Failed to add output \"%s\". Aborting.", name);
+            return EXIT_FAILURE;
+        }
+    }
+
     SAFE_DESTROY(configuration, ConfigurationDestroy);
 
     // Run forever

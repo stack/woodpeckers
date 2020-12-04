@@ -123,10 +123,36 @@ static void ControllerChangeState(ControllerRef self, ControllerState newState) 
     LogI(TAG, "Changing state from %s to %s", ControllerStateToString(self->state), ControllerStateToString(newState));
 }
 
-void ControllerRun(ControllerRef NONNULL self) {
+void ControllerRun(ControllerRef self) {
     ControllerChangeState(self, ControllerStateStartup);
 
     EventLoopRun(self->eventLoop);
+}
+
+bool ControllerSetUp(ControllerRef self) {
+    for (size_t idx = 0; idx < self->totalOutputs; idx++) {
+        OutputRef output = self->outputs[idx];
+
+        LogI(TAG, "Setting up output %s", OutputGetName(output));
+
+        bool result = OutputSetUp(output);
+
+        if (!result) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+void ControllerTearDown(ControllerRef self) {
+    for (size_t idx = 0; idx < self->totalOutputs; idx++) {
+        OutputRef output = self->outputs[idx];
+
+        LogI(TAG, "Tearing down output %s", OutputGetName(output));
+
+        OutputTearDown(output);
+    }
 }
 
 

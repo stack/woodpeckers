@@ -50,6 +50,18 @@ void ControllerDestroy(ControllerRef NONNULL controller);
  */
 void ControllerRun(ControllerRef NONNULL controller);
 
+/**
+ * Perform any set up tasks for the Controller before running.
+ * \param controller The instance to set up.
+ */
+bool ControllerSetUp(ControllerRef NONNULL controller);
+
+/**
+ * Perform any tear down tasks for the Controller after runnings.
+ * \param controller The instance to tear down.
+ */
+void ControllerTearDown(ControllerRef NONNULL controller);
+
 
 // MARK: - Properties Setup
 
@@ -91,9 +103,32 @@ void ControllerSetPeckWait(ControllerRef NONNULL controller, uint32_t value);
 
 // MARK: - Outputs Setup
 
+/**
+ * Add a file-based Output to the Controller.
+ * \param controller The instance to modify.
+ * \param name The name of the Output.
+ * \param path The path to the file to output to.
+ * \return `true` if the output was added successfully, otherwise `false`.
+ */
 bool ControllerAddFileOutput(ControllerRef NONNULL controller, const char * NONNULL name, const char * NONNULL path);
+
+/**
+ * Add a GPIO-based Output to the Controller.
+ * \param controller The instance to modify.
+ * \param name The name of the Output.
+ * \param pin The GPIO pin to output to.
+ * \return `true` if the output was added successfully, otherwise `false`.
+ */
 bool ControllerAddGPIOOutput(ControllerRef NONNULL controller, const char * NONNULL name, int pin);
+
+/**
+ * Add a memory-based Output to the Controller.
+ * \param controller The instance to modify.
+ * \param name The name of the Output.
+ * \return `true` if the output was added successfully, otherwise `false`.
+ */
 bool ControllerAddMemoryOutput(ControllerRef NONNULL controller, const char * NONNULL name);
+
 
 // MARK: - Birds Setup
 

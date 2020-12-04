@@ -182,10 +182,20 @@ int main(int argc, char **argv) {
 
     SAFE_DESTROY(configuration, ConfigurationDestroy);
 
+    // Set Up
+    bool success = ControllerSetUp(controller);
+
+    if (!success) {
+        LogE(TAG, "Failed to set up controller. Aborting.");
+        return EXIT_FAILURE;
+    }
+
     // Run forever
     ControllerRun(controller);
 
+    // Tear Down
     // Clean up
+    ControllerTearDown(controller);
     ControllerDestroy(controller);
 
     return EXIT_SUCCESS;

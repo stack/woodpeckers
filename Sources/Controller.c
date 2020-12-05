@@ -10,6 +10,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 #include "EventLoop.h"
 #include "Log.h"
@@ -25,6 +26,13 @@
 #define DEFAULT_MIN_PECKS 2
 #define DEFAULT_MAX_PECKS 4
 #define DEFAULT_PECK_WAIT 500
+
+#define STARTUP_WAIT 500
+
+#define INITIAL_TIMER_ID 1
+#define PECKING_TIMER_ID 4
+#define STARTUP_TIMER_ID 2
+#define WAITING_TIMER_ID 3
 
 typedef enum _ControllerState {
     ControllerStateInitial = 0,
@@ -63,6 +71,13 @@ typedef struct _Controller {
 
     Bird *birds;
     size_t totalBirds;
+
+    size_t startupIndex;
+    bool startupValue;
+
+    int32_t pecksRemaining;
+    size_t peckingBirdIndex;
+    bool peckValue;
 } Controller;
 
 
@@ -72,11 +87,22 @@ static void ControllerChangeState(ControllerRef NONNULL controller, ControllerSt
 
 static void ControllerAppendOutput(ControllerRef NONNULL controller, OutputRef NONNULL output);
 
-static bool ControllerBirdExists(ControllerRef NONNULL self, const char * NONNULL name);
-static OutputRef NULLABLE ControllerFindOutput(ControllerRef NONNULL self, const char * NONNULL name);
-static bool ControllerOutputExists(ControllerRef NONNULL self, const char * NONNULL name);
-static const char * ControllerStateToString(ControllerState state);
+static void ControllerStartInitialState(ControllerRef NONNULL controller);
+static void ControllerStartPeckingState(ControllerRef NONNULL controller);
+static void ControllerStartStartupState(ControllerRef NONNULL controller);
+static void ControllerStartWaitingState(ControllerRef NONNULL controller);
+static void ControllerStopInitialState(ControllerRef NONNULL controller);
+static void ControllerStopPeckingState(ControllerRef NONNULL controller);
+static void ControllerStopStartupState(ControllerRef NONNULL controller);
+static void ControllerStopWaitingState(ControllerRef NONNULL controller);
+static void ControllerTimerPeckingFired(EventLoopRef NONNULL eventLoop, EventID id, void * NULLABLE context);
+static void ControllerTimerStartupFired(EventLoopRef NONNULL eventLoop, EventID id, void * NULLABLE context);
+static void ControllerTimerWaitingFired(EventLoopRef NONNULL eventLoop, EventID id, void * NULLABLE context);
 
+static bool ControllerBirdExists(ControllerRef NONNULL controller, const char * NONNULL name);
+static OutputRef NULLABLE ControllerFindOutput(ControllerRef NONNULL controller, const char * NONNULL name);
+static bool ControllerOutputExists(ControllerRef NONNULL controller, const char * NONNULL name);
+static const char * ControllerStateToString(ControllerState state);
 
 
 // MARK: - Lifecycle Methods
@@ -91,6 +117,7 @@ ControllerRef ControllerCreate() {
     self->peckWait = DEFAULT_PECK_WAIT;
 
     self->eventLoop = EventLoopCreate();
+    EventLoopSetCallbackContext(self->eventLoop, self);
 
     return self;
 }
@@ -121,6 +148,38 @@ void ControllerDestroy(ControllerRef self) {
 
 static void ControllerChangeState(ControllerRef self, ControllerState newState) {
     LogI(TAG, "Changing state from %s to %s", ControllerStateToString(self->state), ControllerStateToString(newState));
+
+    switch (self->state) {
+        case ControllerStateInitial:
+            ControllerStopInitialState(self);
+            break;
+        case ControllerStatePecking:
+            ControllerStopPeckingState(self);
+            break;
+        case ControllerStateStartup:
+            ControllerStopStartupState(self);
+            break;
+        case ControllerStateWaiting:
+            ControllerStopWaitingState(self);
+            break;
+    }
+
+    switch (newState) {
+        case ControllerStateInitial:
+            ControllerStartInitialState(self);
+            break;
+        case ControllerStatePecking:
+            ControllerStartPeckingState(self);
+            break;
+        case ControllerStateStartup:
+            ControllerStartStartupState(self);
+            break;
+        case ControllerStateWaiting:
+            ControllerStartWaitingState(self);
+            break;
+    }
+
+    self->state = newState;
 }
 
 void ControllerRun(ControllerRef self) {
@@ -130,6 +189,8 @@ void ControllerRun(ControllerRef self) {
 }
 
 bool ControllerSetUp(ControllerRef self) {
+    srand(time(NULL));
+
     for (size_t idx = 0; idx < self->totalOutputs; idx++) {
         OutputRef output = self->outputs[idx];
 
@@ -275,11 +336,131 @@ bool ControllerAddBird(ControllerRef self, const char *name, const char **static
             return false;
         }
 
-        bird->backs[bird->totalForwards] = output;
+        bird->forwards[bird->totalForwards] = output;
         bird->totalForwards += 1;
     }
 
     return true;
+}
+
+
+// MARK: - Running Methods
+
+static void ControllerStartInitialState(ControllerRef self) {
+    // Turn off all outputs
+    for (size_t idx = 0; idx < self->totalOutputs; idx++) {
+        OutputRef output = self->outputs[idx];
+        OutputSetValue(output, false);
+    }
+}
+
+static void ControllerStartPeckingState(ControllerRef self) {
+    int range = self->maxPecks - self->minPecks;
+    self->pecksRemaining = (rand() % range) + self->minPecks;
+    self->peckValue = false;
+
+    EventLoopAddTimer(self->eventLoop, PECKING_TIMER_ID, self->peckWait, ControllerTimerPeckingFired);
+}
+
+static void ControllerStartStartupState(ControllerRef self) {
+    self->startupIndex = 0;
+    self->startupValue = false;
+
+    EventLoopAddTimer(self->eventLoop, STARTUP_TIMER_ID, STARTUP_WAIT, ControllerTimerStartupFired);
+}
+
+static void ControllerStartWaitingState(ControllerRef self) {
+    uint32_t range = self->maxWait - self->minWait;
+    uint32_t waitTime = (rand() % range) + self->minWait;
+
+    LogI(TAG, "Waiting for %" PRIu32 " milliseconds", waitTime);
+
+    EventLoopAddTimer(self->eventLoop, WAITING_TIMER_ID, waitTime, ControllerTimerWaitingFired);
+}
+
+static void ControllerStopInitialState(ControllerRef self) {
+    // Nothing to do
+}
+
+static void ControllerStopPeckingState(ControllerRef self) {
+    EventLoopRemoveTimer(self->eventLoop, PECKING_TIMER_ID);
+}
+
+static void ControllerStopStartupState(ControllerRef self) {
+    EventLoopRemoveTimer(self->eventLoop, STARTUP_TIMER_ID);
+}
+
+static void ControllerStopWaitingState(ControllerRef self) {
+    EventLoopRemoveTimer(self->eventLoop, WAITING_TIMER_ID);
+}
+
+static void ControllerTimerPeckingFired(EventLoopRef eventLoop, EventID id, void *context) {
+    ControllerRef self = (ControllerRef)context;
+
+    self->peckValue = !self->peckValue;
+
+    Bird *bird = self->birds + self->peckingBirdIndex;
+
+    for (size_t idx = 0; idx < bird->totalBacks; idx++) {
+        OutputRef output = bird->backs[idx];
+        OutputSetValue(output, !self->peckValue);
+    }
+
+    for (size_t idx = 0; idx < bird->totalForwards; idx++) {
+        OutputRef output = bird->forwards[idx];
+        OutputSetValue(output, self->peckValue);
+    }
+
+    if (!self->peckValue) {
+        self->pecksRemaining -= 1;
+    }
+
+    if (self->pecksRemaining <= 0) {
+        self->peckingBirdIndex = (self->peckingBirdIndex + 1) % self->totalBirds;
+        ControllerChangeState(self, ControllerStateWaiting);
+    }
+}
+
+static void ControllerTimerStartupFired(EventLoopRef eventLoop, EventID id, void *context) {
+    ControllerRef self = (ControllerRef)context;
+
+    self->startupValue = !self->startupValue;
+
+    OutputRef output = self->outputs[self->startupIndex];
+    OutputSetValue(output, self->startupValue);
+
+    if (!self->startupValue) {
+        self->startupIndex += 1;
+    }
+
+    if (self->startupIndex >= self->totalOutputs) {
+        for (size_t birdIdx = 0; birdIdx < self->totalBirds; birdIdx++) {
+            Bird *bird = self->birds + birdIdx;
+
+            for (size_t outputIdx = 0; outputIdx < bird->totalStatics; outputIdx++) {
+                output = bird->statics[outputIdx];
+                OutputSetValue(output, true);
+            }
+
+            for (size_t outputIdx = 0; outputIdx < bird->totalBacks; outputIdx++) {
+                output = bird->backs[outputIdx];
+                OutputSetValue(output, true);
+            }
+
+            for (size_t outputIdx = 0; outputIdx < bird->totalForwards; outputIdx++) {
+                output = bird->forwards[outputIdx];
+                OutputSetValue(output, false);
+            }
+        }
+
+        ControllerChangeState(self, ControllerStateWaiting);
+    }
+}
+
+static void ControllerTimerWaitingFired(EventLoopRef eventLoop, EventID id, void *context) {
+    ControllerRef self = (ControllerRef)context;
+    
+    ControllerChangeState(self, ControllerStatePecking);
 }
 
 

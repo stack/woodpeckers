@@ -254,6 +254,8 @@ static bool OutputGetValueMemory(const OutputRef self) {
 }
 
 void OutputSetValue(OutputRef self, bool value) {
+    LogI(TAG, "Turning output %s %s", self->name, value ? "on" : "off");
+    
     switch (self->type) {
         case OutputTypeFile:
             OutputSetValueFile(self, value);

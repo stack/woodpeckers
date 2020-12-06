@@ -524,4 +524,7 @@ static const char * ControllerStateToString(ControllerState state) {
             return "Pecking";
             break;
     }
+
+    return "ERROR";
 }
+

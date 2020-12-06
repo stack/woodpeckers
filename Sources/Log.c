@@ -18,6 +18,7 @@
 #if TARGET_PLATFORM_APPLE
 #include <os/log.h>
 #elif TARGET_PLATFORM_LINUX
+#include <time.h>
 // TODO: syslog header here
 #endif
 
@@ -158,4 +159,6 @@ static char LogLevelToChar(LogLevel level) {
             return 'W';
             break;
     }
+
+    return 'X';
 }

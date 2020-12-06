@@ -154,6 +154,8 @@ bool OutputSetUp(OutputRef self) {
             return OutputSetUpMemory(self);
             break;
     }
+
+    return false;
 }
 
 static bool OutputSetUpFile(OutputRef self) {
@@ -224,6 +226,8 @@ bool OutputGetValue(const OutputRef self) {
             return OutputGetValueMemory(self);
             break;
     }
+
+    return false;
 }
 
 static bool OutputGetValueFile(const OutputRef self) {
@@ -255,7 +259,7 @@ static bool OutputGetValueMemory(const OutputRef self) {
 
 void OutputSetValue(OutputRef self, bool value) {
     LogI(TAG, "Turning output %s %s", self->name, value ? "on" : "off");
-    
+
     switch (self->type) {
         case OutputTypeFile:
             OutputSetValueFile(self, value);

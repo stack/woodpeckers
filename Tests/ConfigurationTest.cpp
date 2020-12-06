@@ -64,15 +64,15 @@ TEST_F(ConfigurationTest, HasDefaultOutputs) {
 }
 
 TEST_F(ConfigurationTest, ParsesNothing) {
-    const char *stringValue = "%YAML 1.2\n---\n";
+    const char *stringValue = "%YAML 1.1\n---\n\n";
 
     configuration = ConfigurationCreateFromString(stringValue);
     ASSERT_NE(configuration, nullptr);
 }
 
 TEST_F(ConfigurationTest, ParsesSettings) {
-    const char *stringValue = 
-        "%YAML 1.2\n"
+    const char *stringValue =
+        "%YAML 1.1\n"
         "---\n"
         "\n"
         "Settings:\n"
@@ -102,8 +102,8 @@ TEST_F(ConfigurationTest, ParsesSettings) {
 }
 
 TEST_F(ConfigurationTest, ParsesOutputs) {
-    const char *stringValue = 
-        "%YAML 1.2\n"
+    const char *stringValue =
+        "%YAML 1.1\n"
         "---\n"
         "\n"
         "Outputs:\n"
@@ -148,8 +148,8 @@ TEST_F(ConfigurationTest, ParsesOutputs) {
 }
 
 TEST_F(ConfigurationTest, FailsToParseOutputEmptyType) {
-    const char *stringValue = 
-        "%YAML 1.2\n"
+    const char *stringValue =
+        "%YAML 1.1\n"
         "---\n"
         "\n"
         "Outputs:\n"
@@ -160,8 +160,8 @@ TEST_F(ConfigurationTest, FailsToParseOutputEmptyType) {
 }
 
 TEST_F(ConfigurationTest, FailsToParseOutputUnknownType) {
-    const char *stringValue = 
-        "%YAML 1.2\n"
+    const char *stringValue =
+        "%YAML 1.1\n"
         "---\n"
         "\n"
         "Outputs:\n"
@@ -173,8 +173,8 @@ TEST_F(ConfigurationTest, FailsToParseOutputUnknownType) {
 }
 
 TEST_F(ConfigurationTest, FailsToParseOutputUnknownKey) {
-    const char *stringValue = 
-        "%YAML 1.2\n"
+    const char *stringValue =
+        "%YAML 1.1\n"
         "---\n"
         "\n"
         "Outputs:\n"
@@ -187,8 +187,8 @@ TEST_F(ConfigurationTest, FailsToParseOutputUnknownKey) {
 }
 
 TEST_F(ConfigurationTest, FailsToParseFileOutputWithoutPath) {
-   const char *stringValue = 
-        "%YAML 1.2\n"
+   const char *stringValue =
+        "%YAML 1.1\n"
         "---\n"
         "\n"
         "Outputs:\n"
@@ -196,12 +196,12 @@ TEST_F(ConfigurationTest, FailsToParseFileOutputWithoutPath) {
         "    Type: File\n";
 
     configuration = ConfigurationCreateFromString(stringValue);
-    ASSERT_EQ(configuration, nullptr); 
+    ASSERT_EQ(configuration, nullptr);
 }
 
 TEST_F(ConfigurationTest, FailsToParseGPIOOutputWithoutPin) {
-   const char *stringValue = 
-        "%YAML 1.2\n"
+   const char *stringValue =
+        "%YAML 1.1\n"
         "---\n"
         "\n"
         "Outputs:\n"
@@ -209,12 +209,12 @@ TEST_F(ConfigurationTest, FailsToParseGPIOOutputWithoutPin) {
         "    Type: GPIO\n";
 
     configuration = ConfigurationCreateFromString(stringValue);
-    ASSERT_EQ(configuration, nullptr); 
+    ASSERT_EQ(configuration, nullptr);
 }
 
 TEST_F(ConfigurationTest, ParsesBirds) {
-    const char *stringValue = 
-        "%YAML 1.2\n"
+    const char *stringValue =
+        "%YAML 1.1\n"
         "---\n"
         "\n"
         "Birds:\n"
@@ -310,7 +310,7 @@ TEST_F(ConfigurationTest, ParsesBirds) {
 
 TEST_F(ConfigurationTest, ParseEverything) {
     const char *stringValue =
-        "%YAML 1.2\n"
+        "%YAML 1.1\n"
         "---\n"
         "\n"
         "Settings:\n"

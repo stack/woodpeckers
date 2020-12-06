@@ -151,7 +151,7 @@ static ConfigurationRef ConfigurationCreateDefaults() {
 
 ConfigurationRef ConfigurationCreateFromFile(const char *path) {
     ConfigurationRef self = ConfigurationCreateDefaults();
-    
+
     bool success = ConfigurationParseFromFile(self, path);
 
     if (!success) {
@@ -217,6 +217,7 @@ static bool ConfigurationParse(ConfigurationRef self, yaml_parser_t *parser) {
         int result = yaml_parser_parse(parser, &event);
 
         if (result == 0) {
+            LogE(TAG, "Parse failure: %i", parser->error);
             break;
         }
 
@@ -285,7 +286,7 @@ static bool ConfigurationParse(ConfigurationRef self, yaml_parser_t *parser) {
     ConfigurationBirdDestroy(&context.bird);
 
     return success;
-} 
+}
 
 static bool ConfigurationParseFromFile(ConfigurationRef self, const char *path) {
     bool success = false;
@@ -303,7 +304,7 @@ static bool ConfigurationParseFromFile(ConfigurationRef self, const char *path) 
     yaml_parser_set_input_file(&parser, file);
 
     success = ConfigurationParse(self, &parser);
-    
+
 parse_from_file_cleanup:
 
     SAFE_DESTROY(file, fclose);
@@ -397,7 +398,7 @@ static bool ConfigurationParseBirdsScalar(ConfigurationRef self, const yaml_even
             success = true;
         } else {
             LogE(TAG, "Invalid Bird section: %s", value);
-        } 
+        }
     } else {
         switch (context->scalarKey) {
             case ScalarKeyStatic:
@@ -670,7 +671,7 @@ static bool ConfigurationParseSettingsScalar(ConfigurationRef self, const yaml_e
     // size_t valueSize = event->data.scalar.length;
 
     if (context->scalarKey == ScalarKeyNone) {
-        
+
 
         if (strcmp(value, "MinWait") == 0) {
             context->scalarKey = ScalarKeyMinWait;

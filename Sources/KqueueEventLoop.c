@@ -29,12 +29,18 @@
 #define INTERNAL_EVENT_ID UINT16_MAX
 #define TAG "EVENTLOOP"
 
+typedef enum _EventType {
+    EventTypeUnknown = 0,
+    EventTypeTimer,
+    EventTypeUser,
+} EventType;
+
 typedef struct _Event {
     bool isActive;
     bool shouldDeactivate;
 
     EventID id;
-    int16_t type;
+    EventType type;
 
     union {
         struct {
@@ -75,9 +81,9 @@ static void EventLoopHandleStopUserEvent(EventLoopRef NONNULL self, EventID id, 
 // Event Management
 static void EventLoopDeactivateEvents(EventLoopRef NONNULL self);
 static void EventLoopExpandEvents(EventLoopRef NONNULL self, Event * NONNULL * NONNULL events, size_t * NONNULL eventsSize);
-static Event * EventLoopFindExistingEvent(EventLoopRef NONNULL self, EventID id, int16_t type);
-static Event * EventLoopFindFreeEvent(EventLoopRef NONNULL self, int16_t type);
-static bool EventLoopHasEvent(EventLoopRef NONNULL self, EventID id, int16_t type);
+static Event * EventLoopFindExistingEvent(EventLoopRef NONNULL self, EventID id, EventType type);
+static Event * EventLoopFindFreeEvent(EventLoopRef NONNULL self, EventType type);
+static bool EventLoopHasEvent(EventLoopRef NONNULL self, EventID id, EventType type);
 
 
 // MARK: - Lifecycle Methods
@@ -212,16 +218,16 @@ static void EventLoopExpandEvents(EventLoopRef self, Event **events, size_t *eve
     *eventsSize += EVENTS_STEP;
 }
 
-static Event * EventLoopFindExistingEvent(EventLoopRef self, EventID id, int16_t type) {
+static Event * EventLoopFindExistingEvent(EventLoopRef self, EventID id, EventType type) {
     Event *events;
     size_t size;
 
     switch (type) {
-        case EVFILT_TIMER:
+        case EventTypeTimer:
             events = self->timerEvents;
             size = self->timerEventsSize;
             break;
-        case EVFILT_USER:
+        case EventTypeUser:
             events = self->userEvents;
             size = self->userEventsSize;
             break;
@@ -242,16 +248,16 @@ static Event * EventLoopFindExistingEvent(EventLoopRef self, EventID id, int16_t
     return NULL;
 }
 
-static Event *EventLoopFindFreeEvent(EventLoopRef self, int16_t type) {
+static Event *EventLoopFindFreeEvent(EventLoopRef self, EventType type) {
     Event *events;
     size_t size;
 
     switch (type) {
-        case EVFILT_TIMER:
+        case EventTypeTimer:
             events = self->timerEvents;
             size = self->timerEventsSize;
             break;
-        case EVFILT_USER:
+        case EventTypeUser:
             events = self->userEvents;
             size = self->userEventsSize;
             break;
@@ -272,16 +278,16 @@ static Event *EventLoopFindFreeEvent(EventLoopRef self, int16_t type) {
     return NULL;
 }
 
-static bool EventLoopHasEvent(EventLoopRef self, EventID id, int16_t type) {
+static bool EventLoopHasEvent(EventLoopRef self, EventID id, EventType type) {
     Event *events;
     size_t size;
 
     switch (type) {
-        case EVFILT_TIMER:
+        case EventTypeTimer:
             events = self->timerEvents;
             size = self->timerEventsSize;
             break;
-        case EVFILT_USER:
+        case EventTypeUser:
             events = self->userEvents;
             size = self->userEventsSize;
             break;
@@ -307,7 +313,7 @@ static bool EventLoopHasEvent(EventLoopRef self, EventID id, int16_t type) {
 
 void EventLoopAddTimer(EventLoopRef self, EventID id, uint32_t timeout, EventLoopTimerFiredCallback callback) {
     // Do nothing if the timer exists
-    if (EventLoopHasEvent(self, id, EVFILT_TIMER)) {
+    if (EventLoopHasEvent(self, id, EventTypeTimer)) {
         LogE(TAG, "Timer %" PRIu16 " already exists", id);
         return;
     }
@@ -318,7 +324,7 @@ void EventLoopAddTimer(EventLoopRef self, EventID id, uint32_t timeout, EventLoo
     }
 
     // Find the next available event
-    Event *event = EventLoopFindFreeEvent(self, EVFILT_TIMER);
+    Event *event = EventLoopFindFreeEvent(self, EventTypeTimer);
 
     if (event == NULL) {
         LogE(TAG, "Failed to find free space for timer event %" PRIu16, id);
@@ -338,7 +344,7 @@ void EventLoopAddTimer(EventLoopRef self, EventID id, uint32_t timeout, EventLoo
 
     // Finalize the event
     event->id = id;
-    event->type = EVFILT_TIMER;
+    event->type = EventTypeTimer;
     event->timer.timeoutMs = timeout;
     event->timer.timerFired = callback;
 
@@ -359,12 +365,12 @@ static void EventLoopHandleTimerEvent(EventLoopRef self, Event *event) {
 }
 
 bool EventLoopHasTimer(EventLoopRef self, EventID id) {
-    bool result = EventLoopHasEvent(self, id, EVFILT_TIMER);
+    bool result = EventLoopHasEvent(self, id, EventTypeTimer);
     return result;
 }
 
 void EventLoopRemoveTimer(EventLoopRef self, EventID id) {
-    Event *event = EventLoopFindExistingEvent(self, id, EVFILT_TIMER);
+    Event *event = EventLoopFindExistingEvent(self, id, EventTypeTimer);
 
     if (event == NULL) {
         LogE(TAG, "Cannot remove timer %" PRIu16 ", which does not exist", id);
@@ -388,7 +394,7 @@ void EventLoopRemoveTimer(EventLoopRef self, EventID id) {
 
 void EventLoopAddUserEvent(EventLoopRef self, EventID id, EventLoopUserEventFiredCallback callback) {
         // Do nothing if the user event exists
-    if (EventLoopHasEvent(self, id, EVFILT_USER)) {
+    if (EventLoopHasEvent(self, id, EventTypeUser)) {
         LogE(TAG, "User event %" PRIu16 " already exists", id);
         return;
     }
@@ -399,7 +405,7 @@ void EventLoopAddUserEvent(EventLoopRef self, EventID id, EventLoopUserEventFire
     }
 
     // Find the next available event
-    Event *event = EventLoopFindFreeEvent(self, EVFILT_USER);
+    Event *event = EventLoopFindFreeEvent(self, EventTypeUser);
 
     if (event == NULL) {
         LogE(TAG, "Failed to find free space for user event %" PRIu16, id);
@@ -419,7 +425,7 @@ void EventLoopAddUserEvent(EventLoopRef self, EventID id, EventLoopUserEventFire
 
     // Finalize the event
     event->id = id;
-    event->type = EVFILT_USER;
+    event->type = EventTypeUser;
     event->user.userEventFired = callback;
 
     event->isActive = true;
@@ -454,12 +460,12 @@ static void EventLoopHandleUserEvent(EventLoopRef self, Event *event) {
 }
 
 bool EventLoopHasUserEvent(EventLoopRef self, EventID id) {
-    bool result = EventLoopHasEvent(self, id, EVFILT_USER);
+    bool result = EventLoopHasEvent(self, id, EventTypeUser);
     return result;
 }
 
 void EventLoopRemoveUserEvent(EventLoopRef self, EventID id) {
-    Event *event = EventLoopFindExistingEvent(self, id, EVFILT_USER);
+    Event *event = EventLoopFindExistingEvent(self, id, EventTypeUser);
 
     if (event == NULL) {
         LogE(TAG, "Cannot remove user event %" PRIu16 ", which does not exist", id);
@@ -479,7 +485,7 @@ void EventLoopRemoveUserEvent(EventLoopRef self, EventID id) {
 }
 
 void EventLoopTriggerUserEvent(EventLoopRef self, EventID id) {
-    Event *event = EventLoopFindExistingEvent(self, id, EVFILT_USER);
+    Event *event = EventLoopFindExistingEvent(self, id, EventTypeUser);
 
     if (event == NULL) {
         LogE(TAG, "Failed to find the user event for %" PRIu16);

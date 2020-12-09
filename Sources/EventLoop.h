@@ -15,6 +15,9 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#include <sys/socket.h>
+#include <sys/types.h>
+
 
 BEGIN_DECLS
 
@@ -29,6 +32,46 @@ typedef struct _EventLoop * EventLoopRef;
 
 
 // MARK: - Callbacks
+
+/**
+ * Called when a server did accept a new connection.
+ * \param eventLoop The Event Loop the server received a new connection on.
+ * \param serverID The ID of the server.
+ * \param peerID The ID of the client.
+ * \param address The address of the client.
+ * \param context The opaque callback context associated with the Event Loop.
+ */
+typedef void (* EventLoopServerDidAcceptCallback)(EventLoopRef NONNULL eventLoop, EventID serverID, EventID peerID, struct sockaddr * NONNULL address, void * NULLABLE context);
+
+/**
+ * Called when a server has received data from a peer.
+ * \param eventLoop The Event Loop the server received data on.
+ * \param serverID The ID of the server.
+ * \param peerID The ID of the peer.
+ * \param data The data received.
+ * \param size The size of the data received.
+ * \param context The opaque callback context associated with the Event Loop.
+ */
+typedef void (* EventLoopServerDidReceiveDataCallback)(EventLoopRef NONNULL eventLoop, EventID serverID, EventID clientID, const uint8_t * NONNULL data, size_t size, void * NULLABLE context);
+
+/**
+ * Called when a server peer has disconnected.
+ * \param eventLoop The Event Loop the server received data on.
+ * \param serverID The ID of the server.
+ * \param peerID The ID of the peer.
+ * \param context The opaque callback context associated with the Event Loop.
+ */
+typedef void (* EventLoopServerPeerDidDisconnectCallback)(EventLoopRef NONNULL eventLoop, EventID serverID, EventID clientID, void * NULLABLE context);
+
+/**
+ * Called when a server should accept or reject a new connection.
+ * \param eventLoop The Event Loop the server received a new connection on.
+ * \param id The ID of the server.
+ * \param address The address of the client.
+ * \param context The opque callback context associated with the Event Loop.
+ * \return `true` to accept the connection. `false` to reject the connection.
+ */
+typedef bool (* EventLoopServerShouldAcceptCallback)(EventLoopRef NONNULL eventLoop, EventID id, struct sockaddr * NONNULL address, void * NULLABLE context);
 
 /**
  * Called when a timer has fired.
@@ -112,6 +155,22 @@ bool EventLoopHasTimer(EventLoopRef NONNULL eventLoop, EventID id);
  * \note Non-existent IDs are ignored.
  */
 void EventLoopRemoveTimer(EventLoopRef NONNULL eventLoop, EventID id);
+
+
+// MARK: - Servers
+
+typedef struct _EventLoopServerDescriptor {
+    EventID id;
+    uint16_t port;
+    EventLoopServerShouldAcceptCallback NULLABLE shouldAccept;
+    EventLoopServerDidAcceptCallback NULLABLE didAccept;
+    EventLoopServerDidReceiveDataCallback NULLABLE didReceiveData;
+    EventLoopServerPeerDidDisconnectCallback NULLABLE peerDidDisconnect;
+} EventLoopServerDescriptor;
+
+void EventLoopAddServer(EventLoopRef NONNULL eventLoop, const EventLoopServerDescriptor * NONNULL descriptor);
+bool EventLoopHasServer(EventLoopRef NONNULL eventLoop, EventID id);
+void EventLoopRemoveServer(EventLoopRef NONNULL eventLoop, EventID id);
 
 
 // MARK: - User Events

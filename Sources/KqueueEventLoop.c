@@ -15,7 +15,9 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <netinet/in.h>
 #include <sys/event.h>
+#include <sys/socket.h>
 #include <sys/time.h>
 #include <sys/types.h>
 
@@ -27,10 +29,12 @@
 #define EVENTS_STEP 5
 #define EVENTS_TO_PROCESS 5
 #define INTERNAL_EVENT_ID UINT16_MAX
-#define TAG "EVENTLOOP"
+#define SEND_BUFFER_SIZE 1024
+#define TAG "EventLoop"
 
 typedef enum _EventType {
     EventTypeUnknown = 0,
+    EventTypeServer,
     EventTypeTimer,
     EventTypeUser,
 } EventType;
@@ -44,6 +48,13 @@ typedef struct _Event {
 
     union {
         struct {
+            int fd;
+            uint16_t port;
+            struct sockaddr_storage localAddress;
+            EventLoopServerShouldAcceptCallback shouldAccept;
+            EventLoopServerDidAcceptCallback didAccept;
+        } server;
+        struct {
             uint32_t timeoutMs;
             EventLoopTimerFiredCallback timerFired;
         } timer;
@@ -53,9 +64,29 @@ typedef struct _Event {
     };
 } Event;
 
+typedef struct _ServerEventClient {
+    bool isActive;
+
+    int idx;
+    int fd;
+    struct sockaddr_storage remoteAddress;
+    Event *server;
+
+    uint8_t sendBuffer[SEND_BUFFER_SIZE];
+    size_t sendBufferSize;
+} ServerEventClient;
+
 typedef struct _EventLoop {
     int kqueueFD;
     bool keepRunning;
+
+    Event *serverEvents;
+    size_t serverEventsCount;
+    size_t serverEventsSize;
+
+    ServerEventClient *serverEventClients;
+    size_t serverEventClientsCount;
+    size_t serverEventClientsSize;
 
     Event *timerEvents;
     size_t timerEventsCount;
@@ -72,6 +103,8 @@ typedef struct _EventLoop {
 // MARK: - Prototypes
 
 // Event Loop Controls
+static void EventLoopHandleServerClientReadEvent(EventLoopRef NONNULL self, Event * NONNULL event);
+static void EventLoopHandleServerEvent(EventLoopRef NONNULL self, Event * NONNULL event);
 static void EventLoopHandleTimerEvent(EventLoopRef NONNULL self, Event * NONNULL event);
 static void EventLoopHandleUserEvent(EventLoopRef NONNULL self, Event * NONNULL event);
 
@@ -103,6 +136,17 @@ EventLoopRef EventLoopCreate() {
 }
 
 void EventLoopDestroy(EventLoopRef self) {
+    // TODO: Clean up server clients
+
+    if (self->serverEvents != NULL) {
+        Event *temp = self->serverEvents;
+        self->serverEvents = NULL;
+        self->serverEventsCount = 0;
+        self->serverEventsSize = 0;
+
+        free(temp);
+    }
+
     if (self->timerEvents != NULL) {
         Event *temp = self->timerEvents;
         self->timerEvents = NULL;
@@ -166,12 +210,22 @@ void EventLoopRunOnce(EventLoopRef self, int64_t timeout) {
     for (int idx = 0; idx < eventsAvailable; idx++) {
         struct kevent *event = &(events[idx]);
 
+        Event *loopEvent = (Event *)event->udata;
+
         switch (event->filter) {
+            case EVFILT_READ:
+                if (loopEvent->type == EventTypeServer) {
+                    EventLoopHandleServerEvent(self, loopEvent);
+                } else {
+                    EventLoopHandleServerClientReadEvent(self, loopEvent);
+                }
+
+                break;
             case EVFILT_TIMER:
-                EventLoopHandleTimerEvent(self, (Event *)event->udata);
+                EventLoopHandleTimerEvent(self, loopEvent);
                 break;
             case EVFILT_USER:
-                EventLoopHandleUserEvent(self, (Event *)event->udata);
+                EventLoopHandleUserEvent(self, loopEvent);
                 break;
             default:
                 LogE(TAG, "Unhandled event filter: %i", event->filter);
@@ -190,6 +244,17 @@ void EventLoopStop(EventLoopRef self) {
 // MARK: - Event Management
 
 static void EventLoopDeactivateEvents(EventLoopRef self) {
+    // TODO: Deactivate clients?
+
+    for (size_t idx = 0; idx < self->serverEventsSize; idx++) {
+        Event *event = self->serverEvents + idx;
+
+        if (event->shouldDeactivate) {
+            memset(event, 0, sizeof(Event));
+            event->server.fd = -1;
+        }
+    }
+
     for (size_t idx = 0; idx < self->timerEventsSize; idx++) {
         Event *event = self->timerEvents + idx;
 
@@ -223,6 +288,10 @@ static Event * EventLoopFindExistingEvent(EventLoopRef self, EventID id, EventTy
     size_t size;
 
     switch (type) {
+        case EventTypeServer:
+            events = self->serverEvents;
+            size = self->serverEventsSize;
+            break;
         case EventTypeTimer:
             events = self->timerEvents;
             size = self->timerEventsSize;
@@ -253,6 +322,10 @@ static Event *EventLoopFindFreeEvent(EventLoopRef self, EventType type) {
     size_t size;
 
     switch (type) {
+        case EventTypeServer:
+            events = self->serverEvents;
+            size = self->serverEventsSize;
+            break;
         case EventTypeTimer:
             events = self->timerEvents;
             size = self->timerEventsSize;
@@ -283,6 +356,10 @@ static bool EventLoopHasEvent(EventLoopRef self, EventID id, EventType type) {
     size_t size;
 
     switch (type) {
+        case EventTypeServer:
+            events = self->serverEvents;
+            size = self->serverEventsSize;
+            break;
         case EventTypeTimer:
             events = self->timerEvents;
             size = self->timerEventsSize;
@@ -306,6 +383,195 @@ static bool EventLoopHasEvent(EventLoopRef self, EventID id, EventType type) {
     }
 
     return false;
+}
+
+
+// MARK: - Servers
+
+void EventLoopAddServer(EventLoopRef self, EventID id, uint16_t port, EventLoopServerShouldAcceptCallback shouldAccept, EventLoopServerDidAcceptCallback didAccept) {
+    // DO nothing if the server already exists
+    if (EventLoopHasEvent(self, id, EventTypeServer)) {
+        LogE(TAG, "Server %" PRIu16 " already exists", id);
+        return;
+    }
+
+    // Expand the servers if needed
+    if (self->serverEventsCount >= self->serverEventsSize) {
+        EventLoopExpandEvents(self, &self->serverEvents, &self->serverEventsSize);
+    }
+
+    // Create the server socket
+    int fd = socket(PF_INET, SOCK_STREAM, 0);
+
+    if (fd == -1) {
+        LogErrno(TAG, errno, "Failed to create a socket for %" PRIu16, id);
+        return;
+    }
+
+    struct sockaddr_storage address;
+    memset(&address, 0, sizeof(address));
+
+    address.ss_family = AF_INET;
+
+    struct sockaddr_in *ipv4Address = (struct sockaddr_in *)&address;
+    ipv4Address->sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    ipv4Address->sin_port = htons(port);
+
+    int result = bind(fd, (struct sockaddr *)&address, sizeof(struct sockaddr_in));
+
+    if (result == -1) {
+        LogErrno(TAG, errno, "Failed to bind socket for %" PRIu16, id);
+        close(fd);
+        return;
+    }
+
+    result = listen(fd, SOMAXCONN);
+
+    if (result == -1) {
+        LogErrno(TAG, errno, "Failed to listen on socket %" PRIu16, id);
+        close(fd);
+        return;
+    }
+
+    // Find the next available server
+    Event *event = EventLoopFindFreeEvent(self, EventTypeServer);
+
+    if (event == NULL) {
+        LogE(TAG, "Failed to find free space for server %" PRIu16, id);
+        close(fd);
+        return;
+    }
+
+    // Add the event to kqueue
+    struct kevent serverEvent;
+    EV_SET(&serverEvent, fd, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, event);
+
+    result = kevent(self->kqueueFD, &serverEvent, 1, NULL, 0, NULL);
+
+    if (result == -1) {
+        LogErrno(TAG, errno, "Failed to add server %" PRIu16 " to kqueue", id);
+        close(fd);
+        return;
+    }
+
+    event->id = id;
+    event->type = EventTypeServer;
+    event->server.fd = fd;
+    event->server.port = port;
+    event->server.localAddress = address;
+    event->server.shouldAccept = shouldAccept;
+    event->server.didAccept = didAccept;
+
+    event->isActive = true;
+    self->serverEventsCount += 1;
+}
+
+static void EventLoopHandleServerClientReadEvent(EventLoopRef self, Event *event) {
+}
+
+static void EventLoopHandleServerEvent(EventLoopRef self, Event *event) {
+    // Accept the connection
+    struct sockaddr_storage remoteAddress;
+    socklen_t remoteAddressSize = sizeof(remoteAddress);
+
+    int clientFD = accept(event->server.fd, (struct sockaddr *)&remoteAddress, &remoteAddressSize);
+
+    if (clientFD == -1) {
+        LogErrno(TAG, errno, "Failed to accept client on server %" PRIu16, event->id);
+        return;
+    }
+
+    bool shouldAccept = true;
+
+    if (event->server.shouldAccept != NULL) {
+        shouldAccept = event->server.shouldAccept(self, event->id, (struct sockaddr *)&remoteAddress, self->callbackContext);
+    }
+
+    if (!shouldAccept) {
+        shutdown(clientFD, SHUT_RDWR);
+        close(clientFD);
+
+        return;
+    }
+
+    LogD(TAG, "New client on server %" PRIu16, event->id);
+
+    if (self->serverEventClientsCount >= self->serverEventClientsSize) {
+        self->serverEventClients = (ServerEventClient *)realloc(self->serverEventClients, sizeof(ServerEventClient) * (self->serverEventClientsSize + EVENTS_STEP));
+        memset(self->serverEventClients + self->serverEventClientsSize, 0, sizeof(ServerEventClient) * EVENTS_STEP);
+        self->serverEventClientsSize += EVENTS_STEP;
+    }
+
+    ServerEventClient *client = NULL;
+
+    for (size_t idx = 0; idx < self->serverEventClientsSize; idx++) {
+        ServerEventClient *current = self->serverEventClients + idx;
+
+        if (!current->isActive) {
+            client = current;
+            client->idx = idx;
+            break;
+        }
+    }
+
+    if (client == NULL) {
+        LogE(TAG, "Failed to find space for a new client on %" PRIu16, event->id);
+        shutdown(clientFD, SHUT_RDWR);
+        close(clientFD);
+    }
+
+    client->fd = clientFD;
+    memcpy(&client->remoteAddress, &remoteAddress, sizeof(remoteAddress));
+    client->server = event;
+
+    memset(client->sendBuffer, 0, SEND_BUFFER_SIZE);
+    client->sendBufferSize = 0;
+
+    // Add the event to kqueue
+    struct kevent clientEvent;
+    EV_SET(&clientEvent, clientFD, EVFILT_READ, EV_ADD | EV_ENABLE, 0, 0, event);
+
+    int result = kevent(self->kqueueFD, &clientEvent, 1, NULL, 0, NULL);
+
+    if (result == -1) {
+        LogErrno(TAG, errno, "Failed to add client %i from server %" PRIu16 " to kqueue", client->idx, event->id);
+        shutdown(clientFD, SHUT_RDWR);
+        close(clientFD);
+
+        return;
+    }
+
+    client->isActive = true;
+    self->serverEventClientsCount += 1;
+
+    if (event->server.didAccept != NULL) {
+        event->server.didAccept(self, event->id, (struct sockaddr *)&remoteAddress, client->idx, self->callbackContext);
+    }
+}
+
+bool EventLoopHasServer(EventLoopRef self, EventID id) {
+    bool result = EventLoopHasEvent(self, id, EventTypeServer);
+    return result;
+}
+
+void EventLoopRemoveServer(EventLoopRef self, EventID id) {
+    Event *event = EventLoopFindExistingEvent(self, id, EventTypeServer);
+
+    if (event == NULL) {
+        LogE(TAG, "Cannot remove server %" PRIu16 ", which does not exist", id);
+        return;
+    }
+
+    struct kevent userEvent;
+    EV_SET(&userEvent, id, EVFILT_USER, EV_DELETE, 0, 0, NULL);
+
+    int result = kevent(self->kqueueFD, &userEvent, 1, NULL, 0, NULL);
+
+    if (result == -1) {
+        LogErrno(TAG, errno, "Failed to remove user event %" PRIu16 " from kqueue", id);
+    }
+
+    event->shouldDeactivate = true;
 }
 
 
@@ -387,13 +653,13 @@ void EventLoopRemoveTimer(EventLoopRef self, EventID id) {
     }
 
     event->shouldDeactivate = true;
-} 
+}
 
 
 // MARK: - User Events
 
 void EventLoopAddUserEvent(EventLoopRef self, EventID id, EventLoopUserEventFiredCallback callback) {
-        // Do nothing if the user event exists
+    // Do nothing if the user event exists
     if (EventLoopHasEvent(self, id, EventTypeUser)) {
         LogE(TAG, "User event %" PRIu16 " already exists", id);
         return;

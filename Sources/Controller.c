@@ -99,6 +99,10 @@ static void ControllerTimerPeckingFired(EventLoopRef NONNULL eventLoop, EventID 
 static void ControllerTimerStartupFired(EventLoopRef NONNULL eventLoop, EventID id, void * NULLABLE context);
 static void ControllerTimerWaitingFired(EventLoopRef NONNULL eventLoop, EventID id, void * NULLABLE context);
 
+static void ControllerDidAcceptClient(EventLoopRef NONNULL eventLoop, EventID serverID, EventID peerID, struct sockaddr * NONNULL address, void * NULLABLE context);
+static void ControllerDidReceiveData(EventLoopRef NONNULL eventLoop, EventID serverID, EventID peerID, const uint8_t *data, size_t dataSize, void * NULLABLE context);
+static bool ControllerShouldAcceptClient(EventLoopRef NONNULL eventLoop, EventID id, struct sockaddr * NONNULL address, void * NULLABLE context);
+
 static bool ControllerBirdExists(ControllerRef NONNULL controller, const char * NONNULL name);
 static OutputRef NULLABLE ControllerFindOutput(ControllerRef NONNULL controller, const char * NONNULL name);
 static bool ControllerOutputExists(ControllerRef NONNULL controller, const char * NONNULL name);
@@ -202,6 +206,17 @@ bool ControllerSetUp(ControllerRef self) {
             return false;
         }
     }
+
+    EventLoopServerDescriptor descriptor;
+    memset(&descriptor, 0, sizeof(descriptor));
+
+    descriptor.id = 42;
+    descriptor.port = 5353;
+    descriptor.shouldAccept = ControllerShouldAcceptClient;
+    descriptor.didAccept = ControllerDidAcceptClient;
+    descriptor.didReceiveData = ControllerDidReceiveData;
+
+    EventLoopAddServer(self->eventLoop, &descriptor);
 
     return true;
 }
@@ -461,6 +476,21 @@ static void ControllerTimerWaitingFired(EventLoopRef eventLoop, EventID id, void
     ControllerRef self = (ControllerRef)context;
     
     ControllerChangeState(self, ControllerStatePecking);
+}
+
+
+// MARK: - Remote Server
+
+static void ControllerDidAcceptClient(EventLoopRef eventLoop, EventID serverID, EventID peerID, struct sockaddr *address, void *context) {
+    LogI(TAG, "New client connection %" PRIu16 " on %" PRIu16, peerID, serverID);
+}
+
+static void ControllerDidReceiveData(EventLoopRef eventLoop, EventID serverID, EventID peerID, const uint8_t *data, size_t dataSize, void * NULLABLE context) {
+    LogI(TAG, "Client %" PRIu16 "/%" PRIu16 " received %zu bytes", serverID, peerID, dataSize);
+}
+
+static bool ControllerShouldAcceptClient(EventLoopRef eventLoop, EventID id, struct sockaddr *address, void *context) {
+    return true;
 }
 
 

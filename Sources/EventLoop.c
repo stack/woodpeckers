@@ -155,6 +155,7 @@ static void EventDestroy(Event *event) {
         event->server.fd = -1;
 
         if (tempFD != -1) {
+            shutdown(tempFD, SHUT_RDWR);
             close(tempFD);
         }
     } else if (event->type == EventTypeServerPeer) {
@@ -162,6 +163,7 @@ static void EventDestroy(Event *event) {
         event->serverPeer.fd = -1;
 
         if (tempFD != -1) {
+            shutdown(tempFD, SHUT_RDWR);
             close(tempFD);
         }
 
@@ -209,6 +211,21 @@ EventLoopRef EventLoopCreate() {
 }
 
 void EventLoopDestroy(EventLoopRef self) {
+    if (self->serverPeerEvents != NULL) {
+        EventRef *temp = self->serverPeerEvents;
+        self->serverPeerEvents = NULL;
+
+        size_t size = self->serverPeerEventsSize;
+        self->serverPeerEventsSize = 0;
+        self->serverPeerEventsCount = 0;
+
+        for (size_t idx = 0; idx < size; idx++) {
+            SAFE_DESTROY(temp[idx], EventDestroy);
+        }
+
+        free(temp);
+    }
+    
     if (self->serverEvents != NULL) {
         EventRef *temp = self->serverEvents;
         self->serverEvents = NULL;

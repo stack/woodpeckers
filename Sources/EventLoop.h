@@ -52,7 +52,7 @@ typedef void (* EventLoopServerDidAcceptCallback)(EventLoopRef NONNULL eventLoop
  * \param size The size of the data received.
  * \param context The opaque callback context associated with the Event Loop.
  */
-typedef void (* EventLoopServerDidReceiveDataCallback)(EventLoopRef NONNULL eventLoop, EventID serverID, EventID clientID, const uint8_t * NONNULL data, size_t size, void * NULLABLE context);
+typedef void (* EventLoopServerDidReceiveDataCallback)(EventLoopRef NONNULL eventLoop, EventID serverID, EventID peerID, const uint8_t * NONNULL data, size_t size, void * NULLABLE context);
 
 /**
  * Called when a server peer has disconnected.
@@ -61,7 +61,7 @@ typedef void (* EventLoopServerDidReceiveDataCallback)(EventLoopRef NONNULL even
  * \param peerID The ID of the peer.
  * \param context The opaque callback context associated with the Event Loop.
  */
-typedef void (* EventLoopServerPeerDidDisconnectCallback)(EventLoopRef NONNULL eventLoop, EventID serverID, EventID clientID, void * NULLABLE context);
+typedef void (* EventLoopServerPeerDidDisconnectCallback)(EventLoopRef NONNULL eventLoop, EventID serverID, EventID peerID, void * NULLABLE context);
 
 /**
  * Called when a server should accept or reject a new connection.
